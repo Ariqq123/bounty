@@ -243,6 +243,10 @@ public final class BountyGuiManager {
             if (!player.isOnline() || !player.isValid()) {
                 return;
             }
+            if (!hasPlacePermission(player)) {
+                player.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+                return;
+            }
             ServiceResult result = bountyService.placeBounty(player.getUniqueId(), player.getName(), prompt.target(), amount);
             player.sendMessage(colored(result));
         });
