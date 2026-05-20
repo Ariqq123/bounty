@@ -41,8 +41,20 @@ public final class BountyGuiManager {
         holder.setInventory(inventory);
         inventory.setItem(11, item(Material.PAPER, "Active Bounties", "Browse all active bounty targets."));
         inventory.setItem(13, item(Material.GOLD_INGOT, "Top Bounties", "See the highest value bounty pools."));
-        inventory.setItem(15, item(Material.PLAYER_HEAD, "My Bounties", "See and manage your active contributions."));
-        inventory.setItem(22, item(Material.CROSSBOW, "Place Bounty", "Pick a target and enter amount in chat."));
+        inventory.setItem(15, item(
+            Material.PLAYER_HEAD,
+            "My Bounties",
+            hasCancelPermission(player)
+                ? "See and manage your active contributions."
+                : "See your active contributions."
+        ));
+        inventory.setItem(22, item(
+            Material.CROSSBOW,
+            "Place Bounty",
+            hasPlacePermission(player)
+                ? "Pick a target and enter amount in chat."
+                : "You do not have permission to place bounties."
+        ));
         player.openInventory(inventory);
     }
 
@@ -94,7 +106,9 @@ public final class BountyGuiManager {
             inventory.setItem(slot++, item(
                 Material.NAME_TAG,
                 contribution.targetName() + " - " + MoneyFormatter.format(contribution.amount()),
-                "Click to cancel and refund " + bountyService.config().cancelRefundPercent() + " percent."
+                hasCancelPermission(player)
+                    ? "Click to cancel and refund " + bountyService.config().cancelRefundPercent() + " percent."
+                    : "You do not have permission to cancel your bounty."
             ));
         }
         inventory.setItem(49, item(Material.BARRIER, "Back", "Return to the main menu."));
@@ -137,6 +151,10 @@ public final class BountyGuiManager {
                 if ("Back".equalsIgnoreCase(title)) {
                     openMain(player);
                 } else {
+                    if (!hasCancelPermission(player)) {
+                        player.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+                        return;
+                    }
                     String targetName = title.split(" - ")[0];
                     bountyService.resolveKnownPlayer(targetName).ifPresent(target -> {
                         ServiceResult result = bountyService.cancelOwnBounty(player.getUniqueId(), player.getName(), target);
@@ -155,6 +173,11 @@ public final class BountyGuiManager {
                     return;
                 }
                 if ("Back".equalsIgnoreCase(title)) {
+                    openMain(player);
+                    return;
+                }
+                if (!hasPlacePermission(player)) {
+                    player.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
                     openMain(player);
                     return;
                 }
@@ -213,7 +236,13 @@ public final class BountyGuiManager {
             case "active bounties" -> openActiveList(player, 1);
             case "top bounties" -> openTopList(player, 1);
             case "my bounties" -> openMyBounties(player);
-            case "place bounty" -> openTargetSelect(player, 1);
+            case "place bounty" -> {
+                if (!hasPlacePermission(player)) {
+                    player.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+                    return;
+                }
+                openTargetSelect(player, 1);
+            }
             default -> {
             }
         }
@@ -275,6 +304,14 @@ public final class BountyGuiManager {
 
     private Component colored(ServiceResult result) {
         return Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED);
+    }
+
+    private boolean hasPlacePermission(Player player) {
+        return player.hasPermission("bounty.place");
+    }
+
+    private boolean hasCancelPermission(Player player) {
+        return player.hasPermission("bounty.cancel.own");
     }
 
     private record PendingAmountPrompt(KnownPlayer target, Instant createdAt) {
