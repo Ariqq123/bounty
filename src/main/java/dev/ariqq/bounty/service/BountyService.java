@@ -114,7 +114,7 @@ public final class BountyService {
             repository.upsertActiveContribution(target.uuid(), target.name(), effectivePlacer.uuid(), effectivePlacer.name(), amount, true);
             long total = repository.getActiveTotalForTarget(target.uuid());
             if (config().broadcastPlace()) {
-                Bukkit.broadcast(Component.text(
+                Msg.broadcast(Component.text(
                     effectivePlacer.name() + " added admin bounty of " + MoneyFormatter.format(amount) + " on " + target.name() + ". Total pool: " + MoneyFormatter.format(total) + ".",
                     NamedTextColor.GOLD
                 ));
@@ -396,7 +396,7 @@ public final class BountyService {
             }
 
             if (config().broadcastClaim() && Bukkit.getServer() != null) {
-                Bukkit.broadcast(Msg.ok(
+                Msg.broadcast(Msg.ok(
                     killerName + " claimed " + MoneyFormatter.format(total) + " by killing " + targetName + "."
                 ));
             }
@@ -523,14 +523,14 @@ public final class BountyService {
     public void sendInfo(CommandSender sender, KnownPlayer target) {
         Optional<BountyTargetSummary> summary = getTargetSummary(target.uuid());
         if (summary.isEmpty()) {
-            sender.sendMessage(Msg.err("No active bounty on " + target.name() + "."));
+            Msg.send(sender, Msg.err("No active bounty on " + target.name() + "."));
             return;
         }
         BountyTargetSummary targetSummary = summary.get();
-        sender.sendMessage(Msg.header("Bounty Details"));
-        sender.sendMessage(Msg.info("Target: " + target.name()));
-        sender.sendMessage(Msg.info("Pool: " + MoneyFormatter.format(targetSummary.totalAmount())));
-        sender.sendMessage(Msg.info("Contributors: " + targetSummary.contributorCount()));
+        Msg.send(sender, Msg.header("Bounty Details"));
+        Msg.send(sender, Msg.info("Target: " + target.name()));
+        Msg.send(sender, Msg.info("Pool: " + MoneyFormatter.format(targetSummary.totalAmount())));
+        Msg.send(sender, Msg.info("Contributors: " + targetSummary.contributorCount()));
     }
 
     public ServiceResult sendDiscordTest(String requestedBy) {
@@ -554,12 +554,12 @@ public final class BountyService {
         }
         Player targetPlayer = Bukkit.getPlayerExact(targetName);
         if (targetPlayer != null) {
-            targetPlayer.sendMessage(Msg.err(
+            Msg.send(targetPlayer, Msg.err(
                 placerName + " placed " + MoneyFormatter.format(amount) + " on you. Total pool: " + MoneyFormatter.format(total) + "."
             ));
         }
         if (config().broadcastPlace()) {
-            Bukkit.broadcast(Msg.info(
+            Msg.broadcast(Msg.info(
                 placerName + " placed " + MoneyFormatter.format(amount) + " on " + targetName + ". Total pool: " + MoneyFormatter.format(total) + "."
             ));
         }

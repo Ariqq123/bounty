@@ -23,11 +23,11 @@ public final class BountyDeathListener implements Listener {
         }
         ClaimResult result = bountyService.claimIfEligible(killer, event.getPlayer());
         if (result.success()) {
-            killer.sendMessage(Msg.ok(result.message()));
+            Msg.send(killer, Msg.ok(result.message()));
             return;
         }
         if (!"No bounty.".equals(result.message())) {
-            killer.sendMessage(Msg.err(result.message()));
+            Msg.send(killer, Msg.err(result.message()));
         }
     }
 }

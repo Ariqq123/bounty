@@ -184,17 +184,17 @@ public final class BountyGuiManager {
                     openMain(player);
                 } else {
                     if (!hasCancelPermission(player)) {
-                        player.sendMessage(Msg.err("You do not have permission to cancel bounties."));
+                        Msg.send(player, Msg.err("You do not have permission to cancel bounties."));
                         return;
                     }
                     KnownPlayer target = holder.getTarget(slot);
                     if (target == null) {
-                        player.sendMessage(Msg.err("That bounty entry is no longer available."));
+                        Msg.send(player, Msg.err("That bounty entry is no longer available."));
                         openMyBounties(player, holder.page());
                         return;
                     }
                     ServiceResult result = bountyService.cancelOwnBounty(player.getUniqueId(), player.getName(), target);
-                    player.sendMessage(Msg.result(result.success(), result.message()));
+                    Msg.send(player, Msg.result(result.success(), result.message()));
                     openMyBounties(player, holder.page());
                 }
             }
@@ -212,19 +212,19 @@ public final class BountyGuiManager {
                     return;
                 }
                 if (!hasPlacePermission(player)) {
-                    player.sendMessage(Msg.err("You do not have permission to place bounties."));
+                    Msg.send(player, Msg.err("You do not have permission to place bounties."));
                     openMain(player);
                     return;
                 }
                 KnownPlayer target = holder.getTarget(slot);
                 if (target == null) {
-                    player.sendMessage(Msg.err("That target is no longer available."));
+                    Msg.send(player, Msg.err("That target is no longer available."));
                     openTargetSelect(player, holder.page());
                     return;
                 }
                 rememberPrompt(player.getUniqueId(), target, Instant.now());
                 player.closeInventory();
-                player.sendMessage(Msg.info("Type the bounty amount for " + target.name() + " in chat, or type cancel."));
+                Msg.send(player, Msg.info("Type the bounty amount for " + target.name() + " in chat, or type cancel."));
             }
         }
     }
@@ -263,11 +263,11 @@ public final class BountyGuiManager {
                 return;
             }
             if (!hasPlacePermission(player)) {
-                player.sendMessage(Msg.err("You do not have permission to place bounties."));
+                Msg.send(player, Msg.err("You do not have permission to place bounties."));
                 return;
             }
             ServiceResult result = bountyService.placeBounty(player.getUniqueId(), player.getName(), prompt.target(), amount);
-            player.sendMessage(Msg.result(result.success(), result.message()));
+            Msg.send(player, Msg.result(result.success(), result.message()));
         });
         return true;
     }
@@ -291,7 +291,7 @@ public final class BountyGuiManager {
             case "my bounties" -> openMyBounties(player);
             case "place bounty" -> {
                 if (!hasPlacePermission(player)) {
-                    player.sendMessage(Msg.err("You do not have permission to place bounties."));
+                    Msg.send(player, Msg.err("You do not have permission to place bounties."));
                     return;
                 }
                 openTargetSelect(player, 1);
@@ -361,12 +361,12 @@ public final class BountyGuiManager {
 
     private void sendPromptMessage(Player player, Component message) {
         if (Bukkit.isPrimaryThread()) {
-            player.sendMessage(message);
+            Msg.send(player, message);
             return;
         }
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (player.isOnline() && player.isValid()) {
-                player.sendMessage(message);
+                Msg.send(player, message);
             }
         });
     }
