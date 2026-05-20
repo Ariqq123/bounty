@@ -81,9 +81,49 @@ class BountyServiceTest {
     }
 
     @Test
+    void cancelStatusMismatchRollsBackRefund() {
+        InMemoryRepository repository = new InMemoryRepository();
+        repository.failNextTransition = true;
+        FakeEconomy economy = new FakeEconomy();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, new FakeNotifier(), BountyServiceTest::testConfig);
+        UUID placer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        economy.setBalance(placer, 5_000);
+        service.placeBounty(placer, "Hunter", new KnownPlayer(target, "Target"), 1000);
+
+        ServiceResult result = service.cancelOwnBounty(placer, "Hunter", new KnownPlayer(target, "Target"));
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals(4_000D, economy.balance(placer));
+        Assertions.assertEquals(1, repository.getUnsafeByTarget(target).size());
+    }
+
+    @Test
     void claimDatabaseFailureCompensatesPaidReward() {
         InMemoryRepository repository = new InMemoryRepository();
         repository.failOnRecordClaim = true;
+        FakeEconomy economy = new FakeEconomy();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, new FakeNotifier(), BountyServiceTest::testConfig);
+        UUID placer = UUID.randomUUID();
+        UUID killer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        economy.setBalance(placer, 5_000);
+        economy.setBalance(killer, 100);
+        service.placeBounty(placer, "Hunter", new KnownPlayer(target, "Target"), 1000);
+
+        ClaimResult result = service.claimIfEligible(killer, "Slayer", target, "Target");
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals(100D, economy.balance(killer));
+        Assertions.assertEquals(1, repository.getUnsafeByTarget(target).size());
+    }
+
+    @Test
+    void claimStatusMismatchCompensatesPaidReward() {
+        InMemoryRepository repository = new InMemoryRepository();
+        repository.failFinalizeClaim = true;
         FakeEconomy economy = new FakeEconomy();
         BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, new FakeNotifier(), BountyServiceTest::testConfig);
         UUID placer = UUID.randomUUID();
@@ -273,6 +313,8 @@ class BountyServiceTest {
         private final Map<String, Instant> abuseLocks = new HashMap<>();
         private final List<BountyClaim> claims = new ArrayList<>();
         private boolean failOnRecordClaim;
+        private boolean failNextTransition;
+        private boolean failFinalizeClaim;
         private long nextId = 1;
         private long nextClaimId = 1;
 
@@ -376,6 +418,20 @@ class BountyServiceTest {
         }
 
         @Override
+        public boolean transitionContributionStatus(long id, ContributionStatus fromStatus, ContributionStatus toStatus) {
+            if (failNextTransition) {
+                failNextTransition = false;
+                return false;
+            }
+            BountyContribution existing = contributions.get(id);
+            if (existing == null || existing.status() != fromStatus) {
+                return false;
+            }
+            updateContributionStatus(id, toStatus);
+            return true;
+        }
+
+        @Override
         public int updateTargetContributionsStatus(UUID targetUuid, ContributionStatus status) {
             int updated = 0;
             for (BountyContribution contribution : new ArrayList<>(contributions.values())) {
@@ -383,6 +439,44 @@ class BountyServiceTest {
                     updateContributionStatus(contribution.id(), status);
                     updated++;
                 }
+            }
+            return updated;
+        }
+
+        @Override
+        public int finalizeClaim(
+            List<Long> contributionIds,
+            UUID targetUuid,
+            String targetName,
+            UUID killerUuid,
+            String killerName,
+            long totalAmount,
+            int sourceCount,
+            Instant claimedAt
+        ) throws SQLException {
+            if (failFinalizeClaim) {
+                return 0;
+            }
+            int updated = 0;
+            List<Long> transitioned = new ArrayList<>();
+            for (Long contributionId : contributionIds) {
+                if (!transitionContributionStatus(contributionId, ContributionStatus.ACTIVE, ContributionStatus.CLAIMED)) {
+                    for (Long transitionedId : transitioned) {
+                        transitionContributionStatus(transitionedId, ContributionStatus.CLAIMED, ContributionStatus.ACTIVE);
+                    }
+                    return 0;
+                }
+                transitioned.add(contributionId);
+                updated++;
+            }
+            try {
+                recordClaim(targetUuid, targetName, killerUuid, killerName, totalAmount, sourceCount);
+                upsertAbuseLock(killerUuid, targetUuid, claimedAt);
+            } catch (SQLException exception) {
+                for (Long transitionedId : transitioned) {
+                    transitionContributionStatus(transitionedId, ContributionStatus.CLAIMED, ContributionStatus.ACTIVE);
+                }
+                throw exception;
             }
             return updated;
         }

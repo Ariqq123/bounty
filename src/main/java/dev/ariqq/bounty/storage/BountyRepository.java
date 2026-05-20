@@ -31,7 +31,20 @@ public interface BountyRepository extends AutoCloseable {
 
     void updateContributionStatus(long id, ContributionStatus status) throws SQLException;
 
+    boolean transitionContributionStatus(long id, ContributionStatus fromStatus, ContributionStatus toStatus) throws SQLException;
+
     int updateTargetContributionsStatus(UUID targetUuid, ContributionStatus status) throws SQLException;
+
+    int finalizeClaim(
+        List<Long> contributionIds,
+        UUID targetUuid,
+        String targetName,
+        UUID killerUuid,
+        String killerName,
+        long totalAmount,
+        int sourceCount,
+        Instant claimedAt
+    ) throws SQLException;
 
     void recordClaim(UUID targetUuid, String targetName, UUID killerUuid, String killerName, long totalAmount, int sourceCount) throws SQLException;
 

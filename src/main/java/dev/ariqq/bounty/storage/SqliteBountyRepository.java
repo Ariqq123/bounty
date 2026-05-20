@@ -242,6 +242,21 @@ public final class SqliteBountyRepository implements BountyRepository {
     }
 
     @Override
+    public synchronized boolean transitionContributionStatus(long id, ContributionStatus fromStatus, ContributionStatus toStatus) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+            UPDATE bounty_contributions
+            SET status = ?, updated_at = ?
+            WHERE id = ? AND status = ?
+            """)) {
+            statement.setString(1, toStatus.name());
+            statement.setString(2, Instant.now().toString());
+            statement.setLong(3, id);
+            statement.setString(4, fromStatus.name());
+            return statement.executeUpdate() == 1;
+        }
+    }
+
+    @Override
     public synchronized int updateTargetContributionsStatus(UUID targetUuid, ContributionStatus status) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
             UPDATE bounty_contributions
@@ -257,22 +272,45 @@ public final class SqliteBountyRepository implements BountyRepository {
     }
 
     @Override
+    public synchronized int finalizeClaim(
+        List<Long> contributionIds,
+        UUID targetUuid,
+        String targetName,
+        UUID killerUuid,
+        String killerName,
+        long totalAmount,
+        int sourceCount,
+        Instant claimedAt
+    ) throws SQLException {
+        if (contributionIds.isEmpty()) {
+            return 0;
+        }
+
+        boolean previousAutoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        try {
+            int updated = transitionContributionStatusesInternal(contributionIds, ContributionStatus.ACTIVE, ContributionStatus.CLAIMED, claimedAt);
+            if (updated != contributionIds.size()) {
+                connection.rollback();
+                return 0;
+            }
+
+            insertClaimInternal(targetUuid, targetName, killerUuid, killerName, totalAmount, sourceCount, claimedAt);
+            upsertAbuseLockInternal(killerUuid, targetUuid, claimedAt);
+            connection.commit();
+            return updated;
+        } catch (SQLException exception) {
+            connection.rollback();
+            throw exception;
+        } finally {
+            connection.setAutoCommit(previousAutoCommit);
+        }
+    }
+
+    @Override
     public synchronized void recordClaim(UUID targetUuid, String targetName, UUID killerUuid, String killerName, long totalAmount, int sourceCount)
         throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement("""
-            INSERT INTO bounty_claims
-            (target_uuid, target_name, killer_uuid, killer_name, total_amount, source_count, claimed_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """)) {
-            statement.setString(1, targetUuid.toString());
-            statement.setString(2, targetName);
-            statement.setString(3, killerUuid.toString());
-            statement.setString(4, killerName);
-            statement.setLong(5, totalAmount);
-            statement.setInt(6, sourceCount);
-            statement.setString(7, Instant.now().toString());
-            statement.executeUpdate();
-        }
+        insertClaimInternal(targetUuid, targetName, killerUuid, killerName, totalAmount, sourceCount, Instant.now());
     }
 
     @Override
@@ -306,16 +344,7 @@ public final class SqliteBountyRepository implements BountyRepository {
 
     @Override
     public synchronized void upsertAbuseLock(UUID killerUuid, UUID targetUuid, Instant claimedAt) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement("""
-            INSERT INTO abuse_claim_locks (killer_uuid, target_uuid, claimed_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(killer_uuid, target_uuid) DO UPDATE SET claimed_at = excluded.claimed_at
-            """)) {
-            statement.setString(1, killerUuid.toString());
-            statement.setString(2, targetUuid.toString());
-            statement.setString(3, claimedAt.toString());
-            statement.executeUpdate();
-        }
+        upsertAbuseLockInternal(killerUuid, targetUuid, claimedAt);
     }
 
     @Override
@@ -347,6 +376,67 @@ public final class SqliteBountyRepository implements BountyRepository {
             contributions.add(mapContribution(resultSet));
         }
         return contributions;
+    }
+
+    private int transitionContributionStatusesInternal(
+        List<Long> contributionIds,
+        ContributionStatus fromStatus,
+        ContributionStatus toStatus,
+        Instant updatedAt
+    ) throws SQLException {
+        int updated = 0;
+        try (PreparedStatement statement = connection.prepareStatement("""
+            UPDATE bounty_contributions
+            SET status = ?, updated_at = ?
+            WHERE id = ? AND status = ?
+            """)) {
+            for (Long contributionId : contributionIds) {
+                statement.setString(1, toStatus.name());
+                statement.setString(2, updatedAt.toString());
+                statement.setLong(3, contributionId);
+                statement.setString(4, fromStatus.name());
+                updated += statement.executeUpdate();
+            }
+        }
+        return updated;
+    }
+
+    private void insertClaimInternal(
+        UUID targetUuid,
+        String targetName,
+        UUID killerUuid,
+        String killerName,
+        long totalAmount,
+        int sourceCount,
+        Instant claimedAt
+    ) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO bounty_claims
+            (target_uuid, target_name, killer_uuid, killer_name, total_amount, source_count, claimed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """)) {
+            statement.setString(1, targetUuid.toString());
+            statement.setString(2, targetName);
+            statement.setString(3, killerUuid.toString());
+            statement.setString(4, killerName);
+            statement.setLong(5, totalAmount);
+            statement.setInt(6, sourceCount);
+            statement.setString(7, claimedAt.toString());
+            statement.executeUpdate();
+        }
+    }
+
+    private void upsertAbuseLockInternal(UUID killerUuid, UUID targetUuid, Instant claimedAt) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO abuse_claim_locks (killer_uuid, target_uuid, claimed_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(killer_uuid, target_uuid) DO UPDATE SET claimed_at = excluded.claimed_at
+            """)) {
+            statement.setString(1, killerUuid.toString());
+            statement.setString(2, targetUuid.toString());
+            statement.setString(3, claimedAt.toString());
+            statement.executeUpdate();
+        }
     }
 
     private BountyContribution mapContribution(ResultSet resultSet) throws SQLException {

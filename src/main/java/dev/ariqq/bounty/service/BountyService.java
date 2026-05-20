@@ -119,7 +119,10 @@ public final class BountyService {
                 return ServiceResult.failure("Failed to refund your cancelled bounty.");
             }
             try {
-                repository.updateContributionStatus(active.id(), ContributionStatus.CANCELLED);
+                if (!repository.transitionContributionStatus(active.id(), ContributionStatus.ACTIVE, ContributionStatus.CANCELLED)) {
+                    compensateDeposit(placerUuid, placerName, refund, "cancelled bounty status mismatch rollback");
+                    return ServiceResult.failure("Your bounty changed before it could be cancelled.");
+                }
             } catch (SQLException exception) {
                 compensateDeposit(placerUuid, placerName, refund, "cancelled bounty rollback");
                 throw exception;
@@ -166,7 +169,10 @@ public final class BountyService {
                         continue;
                     }
                     try {
-                        repository.updateContributionStatus(contribution.id(), ContributionStatus.REFUNDED);
+                        if (!repository.transitionContributionStatus(contribution.id(), ContributionStatus.ACTIVE, ContributionStatus.REFUNDED)) {
+                            compensateDeposit(contribution.placerUuid(), contribution.placerName(), contribution.amount(), "admin refund status mismatch rollback");
+                            continue;
+                        }
                         refunded += contribution.amount();
                         updated++;
                     } catch (SQLException exception) {
@@ -174,8 +180,9 @@ public final class BountyService {
                         throw exception;
                     }
                 } else {
-                    repository.updateContributionStatus(contribution.id(), ContributionStatus.REFUNDED);
-                    updated++;
+                    if (repository.transitionContributionStatus(contribution.id(), ContributionStatus.ACTIVE, ContributionStatus.REFUNDED)) {
+                        updated++;
+                    }
                 }
             }
             if (updated == 0) {
@@ -216,12 +223,21 @@ public final class BountyService {
             }
 
             try {
-                repository.recordClaim(targetUuid, targetName, killerUuid, killerName, total, contributions.size());
-                int claimed = repository.updateTargetContributionsStatus(targetUuid, ContributionStatus.CLAIMED);
-                if (claimed <= 0) {
-                    throw new SQLException("No active contributions were marked claimed.");
+                List<Long> contributionIds = contributions.stream().map(BountyContribution::id).toList();
+                int claimed = repository.finalizeClaim(
+                    contributionIds,
+                    targetUuid,
+                    targetName,
+                    killerUuid,
+                    killerName,
+                    total,
+                    contributions.size(),
+                    Instant.now()
+                );
+                if (claimed != contributionIds.size()) {
+                    compensateDeposit(killerUuid, killerName, total, "claim status mismatch rollback");
+                    return ClaimResult.failure("The bounty changed before it could be claimed.");
                 }
-                repository.upsertAbuseLock(killerUuid, targetUuid, Instant.now());
             } catch (SQLException exception) {
                 compensateDeposit(killerUuid, killerName, total, "claim rollback");
                 throw exception;
