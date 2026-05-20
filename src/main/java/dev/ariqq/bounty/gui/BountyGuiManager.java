@@ -64,7 +64,7 @@ public final class BountyGuiManager {
         holder.setInventory(inventory);
         List<BountyTargetSummary> summaries = bountyService.listActiveTargets(page, bountyService.config().guiPageSize());
         int totalTargets = bountyService.countActiveTargets();
-        fillSummaryItems(inventory, summaries);
+        fillSummaryItems(holder, inventory, summaries);
         if (summaries.isEmpty()) {
             inventory.setItem(22, item(Material.BARRIER, "No Active Bounties", "There are no bounty targets on this page."));
         }
@@ -83,7 +83,7 @@ public final class BountyGuiManager {
         holder.setInventory(inventory);
         List<BountyTargetSummary> summaries = bountyService.listActiveTargets(page, bountyService.config().guiPageSize());
         int totalTargets = bountyService.countActiveTargets();
-        fillSummaryItems(inventory, summaries);
+        fillSummaryItems(holder, inventory, summaries);
         if (summaries.isEmpty()) {
             inventory.setItem(22, item(Material.BARRIER, "No Top Bounties", "There are no bounty targets on this page."));
         }
@@ -111,6 +111,7 @@ public final class BountyGuiManager {
         holder.setInventory(inventory);
         int slot = 0;
         for (BountyContribution contribution : contributions.stream().skip(start).limit(45).toList()) {
+            holder.setTarget(slot, new KnownPlayer(contribution.targetUuid(), contribution.targetName()));
             inventory.setItem(slot++, item(
                 Material.NAME_TAG,
                 contribution.targetName() + " - " + MoneyFormatter.format(contribution.amount()),
@@ -139,6 +140,7 @@ public final class BountyGuiManager {
         long start = pageStart(page, 45);
         int slot = 0;
         for (KnownPlayer knownPlayer : knownPlayers.stream().skip(start).limit(45).toList()) {
+            holder.setTarget(slot, knownPlayer);
             inventory.setItem(slot++, item(Material.PLAYER_HEAD, knownPlayer.name(), "Click to enter a bounty amount in chat."));
         }
         if (slot == 0) {
@@ -159,8 +161,8 @@ public final class BountyGuiManager {
         String title = PLAIN.serialize(clicked.getItemMeta().displayName());
         switch (holder.viewType()) {
             case MAIN -> handleMainClick(player, title);
-            case ACTIVE_LIST -> handlePagedClick(player, title, holder.page(), ViewType.ACTIVE_LIST);
-            case TOP_LIST -> handlePagedClick(player, title, holder.page(), ViewType.TOP_LIST);
+            case ACTIVE_LIST -> handlePagedClick(player, holder, slot, title, holder.page(), ViewType.ACTIVE_LIST);
+            case TOP_LIST -> handlePagedClick(player, holder, slot, title, holder.page(), ViewType.TOP_LIST);
             case MY_BOUNTIES -> {
                 if ("Next Page".equalsIgnoreCase(title)) {
                     openMyBounties(player, holder.page() + 1);
@@ -177,12 +179,15 @@ public final class BountyGuiManager {
                         player.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
                         return;
                     }
-                    String targetName = title.split(" - ")[0];
-                    bountyService.resolveKnownPlayer(targetName).ifPresent(target -> {
-                        ServiceResult result = bountyService.cancelOwnBounty(player.getUniqueId(), player.getName(), target);
-                        player.sendMessage(colored(result));
+                    KnownPlayer target = holder.getTarget(slot);
+                    if (target == null) {
+                        player.sendMessage(Component.text("That bounty entry is no longer available.", NamedTextColor.RED));
                         openMyBounties(player, holder.page());
-                    });
+                        return;
+                    }
+                    ServiceResult result = bountyService.cancelOwnBounty(player.getUniqueId(), player.getName(), target);
+                    player.sendMessage(colored(result));
+                    openMyBounties(player, holder.page());
                 }
             }
             case TARGET_SELECT -> {
@@ -203,14 +208,18 @@ public final class BountyGuiManager {
                     openMain(player);
                     return;
                 }
-                bountyService.resolveKnownPlayer(title).ifPresent(target -> {
-                    prompts.put(player.getUniqueId(), new PendingAmountPrompt(target, Instant.now()));
-                    player.closeInventory();
-                    player.sendMessage(Component.text(
-                        "Type the bounty amount for " + target.name() + " in chat, or type cancel.",
-                        NamedTextColor.YELLOW
-                    ));
-                });
+                KnownPlayer target = holder.getTarget(slot);
+                if (target == null) {
+                    player.sendMessage(Component.text("That target is no longer available.", NamedTextColor.RED));
+                    openTargetSelect(player, holder.page());
+                    return;
+                }
+                prompts.put(player.getUniqueId(), new PendingAmountPrompt(target, Instant.now()));
+                player.closeInventory();
+                player.sendMessage(Component.text(
+                    "Type the bounty amount for " + target.name() + " in chat, or type cancel.",
+                    NamedTextColor.YELLOW
+                ));
             }
         }
     }
@@ -277,7 +286,7 @@ public final class BountyGuiManager {
         }
     }
 
-    private void handlePagedClick(Player player, String title, int page, ViewType viewType) {
+    private void handlePagedClick(Player player, BountyInventoryView holder, int slot, String title, int page, ViewType viewType) {
         if ("Next Page".equalsIgnoreCase(title)) {
             if (viewType == ViewType.TOP_LIST) {
                 openTopList(player, page + 1);
@@ -298,12 +307,16 @@ public final class BountyGuiManager {
             openMain(player);
             return;
         }
-        bountyService.resolveKnownPlayer(title.split(" - ")[0]).ifPresent(target -> bountyService.sendInfo(player, target));
+        KnownPlayer target = holder.getTarget(slot);
+        if (target != null) {
+            bountyService.sendInfo(player, target);
+        }
     }
 
-    private void fillSummaryItems(Inventory inventory, List<BountyTargetSummary> summaries) {
+    private void fillSummaryItems(BountyInventoryView holder, Inventory inventory, List<BountyTargetSummary> summaries) {
         int slot = 0;
         for (BountyTargetSummary summary : summaries.stream().limit(45).toList()) {
+            holder.setTarget(slot, new KnownPlayer(summary.targetUuid(), summary.targetName()));
             inventory.setItem(slot++, item(
                 Material.PLAYER_HEAD,
                 summary.targetName() + " - " + MoneyFormatter.format(summary.totalAmount()),
