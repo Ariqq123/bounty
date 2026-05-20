@@ -6,16 +6,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.Duration;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 public final class DiscordWebhookNotifier implements BountyNotifier {
-    private static final int COLOR_GOLD = 0xF1C40F;
-    private static final int COLOR_GREEN = 0x2ECC71;
-    private static final int COLOR_RED = 0xE74C3C;
-    private static final int COLOR_BLUE = 0x3498DB;
-
     private final HttpClient httpClient;
     private final Supplier<BountyConfig> configSupplier;
     private final Logger logger;
@@ -38,7 +34,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         sendEmbed(
             "Bounty Placed",
             actor + " added a bounty on " + targetName + ".",
-            adminAction ? COLOR_BLUE : COLOR_GOLD,
+            adminAction ? config.discordColorAdmin() : config.discordColorPlace(),
             """
             [{"name":"Target","value":"%s","inline":true},
             {"name":"Added Amount","value":"%d","inline":true},
@@ -56,7 +52,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         sendEmbed(
             "Bounty Cancelled",
             placerName + " cancelled their bounty contribution.",
-            COLOR_RED,
+            config.discordColorCancel(),
             """
             [{"name":"Target","value":"%s","inline":true},
             {"name":"Refunded","value":"%d","inline":true}]
@@ -73,7 +69,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         sendEmbed(
             "Bounty Claimed",
             killerName + " claimed the bounty reward.",
-            COLOR_GREEN,
+            config.discordColorClaim(),
             """
             [{"name":"Target","value":"%s","inline":true},
             {"name":"Reward","value":"%d","inline":true},
@@ -91,7 +87,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         sendEmbed(
             "Admin Action",
             "An admin removed active bounty contributions.",
-            COLOR_BLUE,
+            config.discordColorAdmin(),
             """
             [{"name":"Target","value":"%s","inline":true},
             {"name":"Removed Contributions","value":"%d","inline":true}]
@@ -108,7 +104,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         sendEmbed(
             "Admin Refund",
             "An admin refunded bounty contributions.",
-            COLOR_BLUE,
+            config.discordColorAdmin(),
             """
             [{"name":"Target","value":"%s","inline":true},
             {"name":"Refunded Amount","value":"%d","inline":true},
@@ -153,6 +149,10 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         builder.append("\"description\":\"").append(escapeJson(description)).append("\",");
         builder.append("\"color\":").append(color).append(",");
         builder.append("\"fields\":").append(fieldsJson.replace('\n', ' ').trim());
+        appendEmbedOptional(builder, "footer", buildFooterJson(config.discordFooterText()));
+        if (config.discordShowTimestamp()) {
+            builder.append(",\"timestamp\":\"").append(Instant.now()).append("\"");
+        }
         builder.append("}]");
         appendOptional(builder, "username", config.discordUsername());
         appendOptional(builder, "avatar_url", config.discordAvatarUrl());
@@ -165,6 +165,20 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             return;
         }
         builder.append(",\"").append(key).append("\":\"").append(escapeJson(value.trim())).append("\"");
+    }
+
+    private void appendEmbedOptional(StringBuilder builder, String key, String jsonValue) {
+        if (jsonValue == null || jsonValue.isBlank()) {
+            return;
+        }
+        builder.append(",\"").append(key).append("\":").append(jsonValue);
+    }
+
+    private String buildFooterJson(String footerText) {
+        if (footerText == null || footerText.isBlank()) {
+            return "";
+        }
+        return "{\"text\":\"" + escapeJson(footerText.trim()) + "\"}";
     }
 
     private String escapeJson(String value) {

@@ -18,6 +18,14 @@ discord:
   webhook-url: ""
   username: "Bounty"
   avatar-url: ""
+  embed:
+    footer-text: "Bounty"
+    show-timestamp: true
+    colors:
+      place: "#F1C40F"
+      claim: "#2ECC71"
+      cancel: "#E74C3C"
+      admin: "#3498DB"
   events:
     place: true
     claim: true

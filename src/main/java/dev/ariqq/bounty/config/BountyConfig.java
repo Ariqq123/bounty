@@ -14,6 +14,12 @@ public record BountyConfig(
     String discordWebhookUrl,
     String discordUsername,
     String discordAvatarUrl,
+    String discordFooterText,
+    boolean discordShowTimestamp,
+    int discordColorPlace,
+    int discordColorClaim,
+    int discordColorCancel,
+    int discordColorAdmin,
     boolean discordNotifyPlace,
     boolean discordNotifyClaim,
     boolean discordNotifyCancel,
@@ -32,6 +38,12 @@ public record BountyConfig(
             config.getString("discord.webhook-url", ""),
             config.getString("discord.username", "Bounty"),
             config.getString("discord.avatar-url", ""),
+            config.getString("discord.embed.footer-text", "Bounty"),
+            config.getBoolean("discord.embed.show-timestamp", true),
+            parseColor(config.getString("discord.embed.colors.place", "#F1C40F"), 0xF1C40F),
+            parseColor(config.getString("discord.embed.colors.claim", "#2ECC71"), 0x2ECC71),
+            parseColor(config.getString("discord.embed.colors.cancel", "#E74C3C"), 0xE74C3C),
+            parseColor(config.getString("discord.embed.colors.admin", "#3498DB"), 0x3498DB),
             config.getBoolean("discord.events.place", true),
             config.getBoolean("discord.events.claim", true),
             config.getBoolean("discord.events.cancel", true),
@@ -41,5 +53,22 @@ public record BountyConfig(
 
     public long refundAmount(long originalAmount) {
         return Math.round(originalAmount * (cancelRefundPercent / 100.0D));
+    }
+
+    private static int parseColor(String input, int fallback) {
+        if (input == null || input.isBlank()) {
+            return fallback;
+        }
+        String normalized = input.trim();
+        if (normalized.startsWith("#")) {
+            normalized = normalized.substring(1);
+        } else if (normalized.startsWith("0x") || normalized.startsWith("0X")) {
+            normalized = normalized.substring(2);
+        }
+        try {
+            return Integer.parseInt(normalized, 16);
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
     }
 }

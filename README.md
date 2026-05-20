@@ -109,6 +109,14 @@ discord:
   webhook-url: ""
   username: "Bounty"
   avatar-url: ""
+  embed:
+    footer-text: "Bounty"
+    show-timestamp: true
+    colors:
+      place: "#F1C40F"
+      claim: "#2ECC71"
+      cancel: "#E74C3C"
+      admin: "#3498DB"
   events:
     place: true
     claim: true
@@ -130,7 +138,7 @@ If you want bounty activity in a Discord channel:
 1. Create a webhook in your Discord server channel settings.
 2. Copy the webhook URL into `discord.webhook-url`.
 3. Set `discord.enabled: true`.
-4. Optionally customize `discord.username`, `discord.avatar-url`, and the enabled event toggles.
+4. Optionally customize `discord.username`, `discord.avatar-url`, footer text, timestamp behavior, embed colors, and enabled event toggles.
 
 Supported webhook embed events:
 
@@ -138,6 +146,13 @@ Supported webhook embed events:
 - Bounty claims
 - Player bounty cancellations
 - Admin add/remove/refund actions
+
+Embed color keys:
+
+- `discord.embed.colors.place`
+- `discord.embed.colors.claim`
+- `discord.embed.colors.cancel`
+- `discord.embed.colors.admin`
 
 ## GUI Flow
 

@@ -122,7 +122,7 @@ class BountyServiceTest {
     }
 
     private static BountyConfig testConfig() {
-        return new BountyConfig(100, 0, 80, 3600, 28, false, false, false, "", "Bounty", "", true, true, true, true);
+        return new BountyConfig(100, 0, 80, 3600, 28, false, false, false, "", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
     }
 
     private static final class FakeNotifier implements BountyNotifier {
