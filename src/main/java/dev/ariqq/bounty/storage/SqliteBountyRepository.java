@@ -24,7 +24,10 @@ public final class SqliteBountyRepository implements BountyRepository {
 
     public SqliteBountyRepository(Path databasePath) throws SQLException {
         try {
-            Files.createDirectories(databasePath.getParent());
+            Path parent = databasePath.toAbsolutePath().getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
         } catch (java.io.IOException exception) {
             throw new SQLException("Could not create plugin data folder", exception);
         }
