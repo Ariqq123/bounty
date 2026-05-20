@@ -38,8 +38,8 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             adminAction ? config.discordColorAdmin() : config.discordColorPlace(),
             """
             [{"name":"Target","value":"%s","inline":true},
-            {"name":"Added Amount","value":"%d","inline":true},
-            {"name":"Total Pool","value":"%d","inline":true}]
+            {"name":"Added Amount","value":"%s","inline":true},
+            {"name":"Total Pool","value":"%s","inline":true}]
             """.formatted(escapeJson(targetName), escapeJson(MoneyFormatter.format(amount)), escapeJson(MoneyFormatter.format(totalPool)))
         );
     }
@@ -56,7 +56,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             config.discordColorCancel(),
             """
             [{"name":"Target","value":"%s","inline":true},
-            {"name":"Refunded","value":"%d","inline":true}]
+            {"name":"Refunded","value":"%s","inline":true}]
             """.formatted(escapeJson(targetName), escapeJson(MoneyFormatter.format(refundAmount)))
         );
     }
@@ -73,7 +73,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             config.discordColorClaim(),
             """
             [{"name":"Target","value":"%s","inline":true},
-            {"name":"Reward","value":"%d","inline":true},
+            {"name":"Reward","value":"%s","inline":true},
             {"name":"Contributions","value":"%d","inline":true}]
             """.formatted(escapeJson(targetName), escapeJson(MoneyFormatter.format(totalAmount)), sourceCount)
         );
@@ -108,7 +108,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             config.discordColorAdmin(),
             """
             [{"name":"Target","value":"%s","inline":true},
-            {"name":"Refunded Amount","value":"%d","inline":true},
+            {"name":"Refunded Amount","value":"%s","inline":true},
             {"name":"Refunded Contributions","value":"%d","inline":true}]
             """.formatted(escapeJson(targetName), escapeJson(MoneyFormatter.format(refundedAmount)), refundedContributions)
         );
@@ -136,12 +136,18 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         }
 
         String payload = buildPayload(config, title, description, color, fieldsJson);
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(webhookUrl))
-            .timeout(Duration.ofSeconds(10))
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-            .build();
+        HttpRequest request;
+        try {
+            request = HttpRequest.newBuilder()
+                .uri(URI.create(webhookUrl))
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                .build();
+        } catch (IllegalArgumentException exception) {
+            logger.warning("Discord webhook URL is invalid: " + exception.getMessage());
+            return;
+        }
 
         httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding())
             .thenAccept(response -> {

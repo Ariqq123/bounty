@@ -11,6 +11,7 @@ import dev.ariqq.bounty.model.KnownPlayer;
 import dev.ariqq.bounty.model.ServiceResult;
 import dev.ariqq.bounty.storage.BountyRepository;
 import dev.ariqq.bounty.util.MoneyFormatter;
+import java.net.URI;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Collections;
@@ -92,7 +93,7 @@ public final class BountyService {
             long total = repository.getActiveTotalForTarget(target.uuid());
             if (config().broadcastPlace()) {
                 Bukkit.broadcast(Component.text(
-                    effectivePlacer.name() + " added admin bounty of " + amount + " on " + target.name() + ". Total pool: " + total + ".",
+                    effectivePlacer.name() + " added admin bounty of " + MoneyFormatter.format(amount) + " on " + target.name() + ". Total pool: " + MoneyFormatter.format(total) + ".",
                     NamedTextColor.GOLD
                 ));
             }
@@ -228,7 +229,7 @@ public final class BountyService {
 
             if (config().broadcastClaim() && Bukkit.getServer() != null) {
                 Bukkit.broadcast(Component.text(
-                    killerName + " claimed bounty of " + total + " by killing " + targetName + ".",
+                    killerName + " claimed bounty of " + MoneyFormatter.format(total) + " by killing " + targetName + ".",
                     NamedTextColor.GREEN
                 ));
             }
@@ -351,6 +352,11 @@ public final class BountyService {
         if (config().discordWebhookUrl() == null || config().discordWebhookUrl().trim().isEmpty()) {
             return ServiceResult.failure("Discord webhook URL is not configured.");
         }
+        try {
+            URI.create(config().discordWebhookUrl().trim());
+        } catch (IllegalArgumentException exception) {
+            return ServiceResult.failure("Discord webhook URL is invalid.");
+        }
         notifier.notifyTestMessage(requestedBy);
         return ServiceResult.success("Discord test embed queued.");
     }
@@ -362,7 +368,7 @@ public final class BountyService {
         Player targetPlayer = Bukkit.getPlayerExact(targetName);
         if (targetPlayer != null) {
             targetPlayer.sendMessage(Component.text(
-                placerName + " placed bounty of " + amount + " on you. Total pool: " + total + ".",
+                placerName + " placed bounty of " + MoneyFormatter.format(amount) + " on you. Total pool: " + MoneyFormatter.format(total) + ".",
                 NamedTextColor.RED
             ));
         }
