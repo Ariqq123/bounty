@@ -69,9 +69,18 @@ public final class BountyGuiManager {
         BountyInventoryView holder = new BountyInventoryView(ViewType.TOP_LIST, page);
         Inventory inventory = Bukkit.createInventory(holder, 54, Component.text("Top Bounties"));
         holder.setInventory(inventory);
-        List<BountyTargetSummary> summaries = bountyService.topActiveTargets(Math.max(bountyService.config().guiPageSize(), 10));
+        List<BountyTargetSummary> summaries = bountyService.listActiveTargets(page, bountyService.config().guiPageSize());
+        int totalTargets = bountyService.countActiveTargets();
         fillSummaryItems(inventory, summaries);
-        inventory.setItem(49, item(Material.BARRIER, "Back", "Return to the main menu."));
+        if (summaries.isEmpty()) {
+            inventory.setItem(22, item(Material.BARRIER, "No Top Bounties", "There are no bounty targets on this page."));
+        }
+        applyNavigation(
+            inventory,
+            page,
+            page > 1,
+            page * bountyService.config().guiPageSize() < totalTargets
+        );
         player.openInventory(inventory);
     }
 
@@ -123,13 +132,7 @@ public final class BountyGuiManager {
         switch (holder.viewType()) {
             case MAIN -> handleMainClick(player, title);
             case ACTIVE_LIST -> handlePagedClick(player, title, holder.page(), ViewType.ACTIVE_LIST);
-            case TOP_LIST -> {
-                if ("Back".equalsIgnoreCase(title)) {
-                    openMain(player);
-                } else {
-                    bountyService.resolveKnownPlayer(title.split(" - ")[0]).ifPresent(target -> bountyService.sendInfo(player, target));
-                }
-            }
+            case TOP_LIST -> handlePagedClick(player, title, holder.page(), ViewType.TOP_LIST);
             case MY_BOUNTIES -> {
                 if ("Back".equalsIgnoreCase(title)) {
                     openMain(player);
@@ -218,11 +221,19 @@ public final class BountyGuiManager {
 
     private void handlePagedClick(Player player, String title, int page, ViewType viewType) {
         if ("Next Page".equalsIgnoreCase(title)) {
-            openActiveList(player, page + 1);
+            if (viewType == ViewType.TOP_LIST) {
+                openTopList(player, page + 1);
+            } else {
+                openActiveList(player, page + 1);
+            }
             return;
         }
         if ("Previous Page".equalsIgnoreCase(title)) {
-            openActiveList(player, Math.max(1, page - 1));
+            if (viewType == ViewType.TOP_LIST) {
+                openTopList(player, Math.max(1, page - 1));
+            } else {
+                openActiveList(player, Math.max(1, page - 1));
+            }
             return;
         }
         if ("Back".equalsIgnoreCase(title)) {
