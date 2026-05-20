@@ -266,6 +266,70 @@ class BountyServiceTest {
     }
 
     @Test
+    void placeRejectsAmountsThatWouldPushPoolAboveSafeEconomyPrecision() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+        UUID placerOne = UUID.randomUUID();
+        UUID placerTwo = UUID.randomUUID();
+
+        economy.setBalance(placerOne, Double.MAX_VALUE);
+        economy.setBalance(placerTwo, Double.MAX_VALUE);
+        ServiceResult first = service.placeBounty(
+            placerOne,
+            "HunterOne",
+            new KnownPlayer(target, "Target"),
+            BountyConfig.MAX_SAFE_ECONOMY_AMOUNT
+        );
+        ServiceResult second = service.placeBounty(
+            placerTwo,
+            "HunterTwo",
+            new KnownPlayer(target, "Target"),
+            1L
+        );
+
+        Assertions.assertTrue(first.success());
+        Assertions.assertFalse(second.success());
+        Assertions.assertEquals(
+            "Maximum supported total bounty pool is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".",
+            second.message()
+        );
+        Assertions.assertEquals(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT, repository.getUnsafeTotal(target));
+        Assertions.assertEquals(1, notifier.placedEvents);
+    }
+
+    @Test
+    void adminAddRejectsAmountsThatWouldPushPoolAboveSafeEconomyPrecision() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+
+        ServiceResult first = service.adminAddBounty(
+            new KnownPlayer(target, "Target"),
+            BountyConfig.MAX_SAFE_ECONOMY_AMOUNT,
+            null
+        );
+        ServiceResult second = service.adminAddBounty(
+            new KnownPlayer(target, "Target"),
+            1L,
+            null
+        );
+
+        Assertions.assertTrue(first.success());
+        Assertions.assertFalse(second.success());
+        Assertions.assertEquals(
+            "Maximum supported total bounty pool is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".",
+            second.message()
+        );
+        Assertions.assertEquals(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT, repository.getUnsafeTotal(target));
+        Assertions.assertEquals(1, notifier.placedEvents);
+    }
+
+    @Test
     void adminAddRejectsTargetAsAttributedPlacer() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();

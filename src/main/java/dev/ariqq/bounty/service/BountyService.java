@@ -61,6 +61,10 @@ public final class BountyService {
         if (amount > BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) {
             return ServiceResult.failure("Maximum supported bounty is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".");
         }
+        ServiceResult poolCapacity = ensurePoolCanAccept(target, amount);
+        if (poolCapacity != null) {
+            return poolCapacity;
+        }
         if (amount < config().minAmount()) {
             return ServiceResult.failure("Minimum bounty is " + config().minAmount() + ".");
         }
@@ -90,6 +94,10 @@ public final class BountyService {
     public ServiceResult adminAddBounty(KnownPlayer target, long amount, KnownPlayer placer) {
         if (amount > BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) {
             return ServiceResult.failure("Maximum supported bounty is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".");
+        }
+        ServiceResult poolCapacity = ensurePoolCanAccept(target, amount);
+        if (poolCapacity != null) {
+            return poolCapacity;
         }
         if (amount < config().minAmount()) {
             return ServiceResult.failure("Minimum bounty is " + config().minAmount() + ".");
@@ -528,6 +536,22 @@ public final class BountyService {
     private void compensateDeposit(UUID playerUuid, String playerName, long amount, String context) {
         if (!economy.withdraw(playerUuid, playerName, amount)) {
             logger.severe("Failed to compensate " + context + " for " + playerName + " amount=" + amount + ".");
+        }
+    }
+
+    private ServiceResult ensurePoolCanAccept(KnownPlayer target, long amount) {
+        try {
+            long currentTotal = repository.getActiveTotalForTarget(target.uuid());
+            long newTotal = Math.addExact(currentTotal, amount);
+            if (newTotal > BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) {
+                return ServiceResult.failure("Maximum supported total bounty pool is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".");
+            }
+            return null;
+        } catch (ArithmeticException exception) {
+            return ServiceResult.failure("Maximum supported total bounty pool is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".");
+        } catch (SQLException exception) {
+            logger.warning("Failed to load current bounty pool: " + exception.getMessage());
+            return ServiceResult.failure("Failed to load the current bounty pool.");
         }
     }
 
