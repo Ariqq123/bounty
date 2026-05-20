@@ -91,6 +91,9 @@ public final class BountyService {
             return ServiceResult.failure("Maximum bounty is " + config().maxAmount() + ".");
         }
         KnownPlayer effectivePlacer = placer == null ? new KnownPlayer(CONSOLE_UUID, CONSOLE_NAME) : placer;
+        if (effectivePlacer.uuid().equals(target.uuid())) {
+            return ServiceResult.failure("Admin bounty placer cannot be the same as the target.");
+        }
         try {
             repository.upsertActiveContribution(target.uuid(), target.name(), effectivePlacer.uuid(), effectivePlacer.name(), amount);
             long total = repository.getActiveTotalForTarget(target.uuid());

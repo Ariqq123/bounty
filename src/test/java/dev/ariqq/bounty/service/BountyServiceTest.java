@@ -197,6 +197,23 @@ class BountyServiceTest {
     }
 
     @Test
+    void adminAddRejectsTargetAsAttributedPlacer() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+        KnownPlayer samePlayer = new KnownPlayer(target, "Target");
+
+        ServiceResult result = service.adminAddBounty(samePlayer, 500L, samePlayer);
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals("Admin bounty placer cannot be the same as the target.", result.message());
+        Assertions.assertEquals(0L, repository.getUnsafeTotal(target));
+        Assertions.assertEquals(0, notifier.placedEvents);
+    }
+
+    @Test
     void adminRefundConsoleContributionReportsClosedWithoutFunds() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
