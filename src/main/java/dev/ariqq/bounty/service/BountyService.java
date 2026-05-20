@@ -11,6 +11,7 @@ import dev.ariqq.bounty.model.KnownPlayer;
 import dev.ariqq.bounty.model.ServiceResult;
 import dev.ariqq.bounty.storage.BountyRepository;
 import dev.ariqq.bounty.util.MoneyFormatter;
+import dev.ariqq.bounty.util.Msg;
 import java.net.URI;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -395,9 +396,8 @@ public final class BountyService {
             }
 
             if (config().broadcastClaim() && Bukkit.getServer() != null) {
-                Bukkit.broadcast(Component.text(
-                    killerName + " claimed bounty of " + MoneyFormatter.format(total) + " by killing " + targetName + ".",
-                    NamedTextColor.GREEN
+                Bukkit.broadcast(Msg.ok(
+                    killerName + " claimed " + MoneyFormatter.format(total) + " by killing " + targetName + "."
                 ));
             }
             notifier.notifyBountyClaimed(killerName, targetName, total, contributions.size());
@@ -517,18 +517,20 @@ public final class BountyService {
     }
 
     public String formatSummary(BountyTargetSummary summary) {
-        return summary.targetName() + " - " + MoneyFormatter.format(summary.totalAmount()) + " (" + summary.contributorCount() + " contributors)";
+        return summary.targetName() + "  —  " + MoneyFormatter.format(summary.totalAmount()) + " (" + summary.contributorCount() + " contributor(s))";
     }
 
     public void sendInfo(CommandSender sender, KnownPlayer target) {
         Optional<BountyTargetSummary> summary = getTargetSummary(target.uuid());
         if (summary.isEmpty()) {
-            sender.sendMessage(Component.text("No active bounty on " + target.name() + ".", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("No active bounty on " + target.name() + "."));
             return;
         }
         BountyTargetSummary targetSummary = summary.get();
-        sender.sendMessage(Component.text("Bounty on " + target.name() + ": " + MoneyFormatter.format(targetSummary.totalAmount()), NamedTextColor.GOLD));
-        sender.sendMessage(Component.text("Contributors: " + targetSummary.contributorCount(), NamedTextColor.YELLOW));
+        sender.sendMessage(Msg.header("Bounty Details"));
+        sender.sendMessage(Msg.info("Target: " + target.name()));
+        sender.sendMessage(Msg.info("Pool: " + MoneyFormatter.format(targetSummary.totalAmount())));
+        sender.sendMessage(Msg.info("Contributors: " + targetSummary.contributorCount()));
     }
 
     public ServiceResult sendDiscordTest(String requestedBy) {
@@ -552,15 +554,13 @@ public final class BountyService {
         }
         Player targetPlayer = Bukkit.getPlayerExact(targetName);
         if (targetPlayer != null) {
-            targetPlayer.sendMessage(Component.text(
-                placerName + " placed bounty of " + MoneyFormatter.format(amount) + " on you. Total pool: " + MoneyFormatter.format(total) + ".",
-                NamedTextColor.RED
+            targetPlayer.sendMessage(Msg.err(
+                placerName + " placed " + MoneyFormatter.format(amount) + " on you. Total pool: " + MoneyFormatter.format(total) + "."
             ));
         }
         if (config().broadcastPlace()) {
-            Bukkit.broadcast(Component.text(
-                placerName + " placed bounty of " + MoneyFormatter.format(amount) + " on " + targetName + ". Total pool: " + MoneyFormatter.format(total) + ".",
-                NamedTextColor.GOLD
+            Bukkit.broadcast(Msg.info(
+                placerName + " placed " + MoneyFormatter.format(amount) + " on " + targetName + ". Total pool: " + MoneyFormatter.format(total) + "."
             ));
         }
     }

@@ -9,13 +9,11 @@ import dev.ariqq.bounty.model.KnownPlayer;
 import dev.ariqq.bounty.model.ServiceResult;
 import dev.ariqq.bounty.service.BountyService;
 import dev.ariqq.bounty.util.MoneyFormatter;
+import dev.ariqq.bounty.util.Msg;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -36,7 +34,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("bounty.use")) {
-            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("You do not have permission to use this command."));
             return true;
         }
         if (args.length == 0) {
@@ -103,20 +101,20 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
     private boolean handlePlace(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("Only players can place bounty.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Only players can place a bounty."));
             return true;
         }
         if (!player.hasPermission("bounty.place")) {
-            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("You do not have permission to place bounties."));
             return true;
         }
         if (args.length < 3) {
-            sender.sendMessage(Component.text("/bounty place <player> <amount>", NamedTextColor.YELLOW));
+            sender.sendMessage(Msg.hint("/bounty place <player> <amount>", "Place a money bounty on a player."));
             return true;
         }
         Optional<KnownPlayer> target = bountyService.resolveKnownPlayer(args[1]);
         if (target.isEmpty()) {
-            sender.sendMessage(Component.text("Unknown player: " + args[1], NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Unknown player: " + args[1] + "."));
             return true;
         }
         OptionalLong amount = parsePositiveLong(args[2], sender, "Amount");
@@ -124,18 +122,18 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         ServiceResult result = bountyService.placeBounty(player.getUniqueId(), player.getName(), target.get(), amount.getAsLong());
-        sender.sendMessage(Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED));
+        sender.sendMessage(Msg.result(result.success(), result.message()));
         return true;
     }
 
     private boolean handleInfo(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(Component.text("/bounty info <player>", NamedTextColor.YELLOW));
+            sender.sendMessage(Msg.hint("/bounty info <player>", "Show active bounty details for a player."));
             return true;
         }
         Optional<KnownPlayer> target = bountyService.resolveKnownPlayer(args[1]);
         if (target.isEmpty()) {
-            sender.sendMessage(Component.text("Unknown player: " + args[1], NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Unknown player: " + args[1] + "."));
             return true;
         }
         bountyService.sendInfo(sender, target.get());
@@ -155,13 +153,13 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             }
         }
         List<BountyTargetSummary> summaries = bountyService.listActiveTargets(page, bountyService.config().guiPageSize());
-        sender.sendMessage(Component.text("Active bounties page " + page, NamedTextColor.GOLD));
+        sender.sendMessage(Msg.header("Active Bounties  —  Page " + page));
         if (summaries.isEmpty()) {
-            sender.sendMessage(Component.text("No active bounties found.", NamedTextColor.GRAY));
+            sender.sendMessage(Msg.muted("No active bounties found on this page."));
             return true;
         }
         for (BountyTargetSummary summary : summaries) {
-            sender.sendMessage(Component.text("- " + bountyService.formatSummary(summary), NamedTextColor.YELLOW));
+            sender.sendMessage(Msg.entry(bountyService.formatSummary(summary)));
         }
         return true;
     }
@@ -179,55 +177,55 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             }
         }
         List<BountyTargetSummary> summaries = bountyService.topActiveTargets(limit);
-        sender.sendMessage(Component.text("Top bounties", NamedTextColor.GOLD));
+        sender.sendMessage(Msg.header("Top Bounties"));
         if (summaries.isEmpty()) {
-            sender.sendMessage(Component.text("No active bounties found.", NamedTextColor.GRAY));
+            sender.sendMessage(Msg.muted("No active bounties found."));
             return true;
         }
         int rank = 1;
         for (BountyTargetSummary summary : summaries) {
-            sender.sendMessage(Component.text(rank++ + ". " + bountyService.formatSummary(summary), NamedTextColor.YELLOW));
+            sender.sendMessage(Msg.numbered(rank++, bountyService.formatSummary(summary)));
         }
         return true;
     }
 
     private boolean handleMy(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("Only players can view their bounties.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Only players can view their bounty contributions."));
             return true;
         }
         List<BountyContribution> contributions = bountyService.getPlayerContributions(player.getUniqueId());
-        sender.sendMessage(Component.text("Your active bounties", NamedTextColor.GOLD));
+        sender.sendMessage(Msg.header("Your Active Bounties"));
         if (contributions.isEmpty()) {
-            sender.sendMessage(Component.text("You do not have active bounties.", NamedTextColor.GRAY));
+            sender.sendMessage(Msg.muted("You have no active bounty contributions."));
             return true;
         }
         for (BountyContribution contribution : contributions) {
-            sender.sendMessage(Component.text("- " + contribution.targetName() + ": " + MoneyFormatter.format(contribution.amount()), NamedTextColor.YELLOW));
+            sender.sendMessage(Msg.entry(contribution.targetName() + "  —  " + MoneyFormatter.format(contribution.amount())));
         }
         return true;
     }
 
     private boolean handleCancel(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("Only players can cancel their bounties.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Only players can cancel a bounty contribution."));
             return true;
         }
         if (!player.hasPermission("bounty.cancel.own")) {
-            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("You do not have permission to cancel bounties."));
             return true;
         }
         if (args.length < 2) {
-            sender.sendMessage(Component.text("/bounty cancel <player>", NamedTextColor.YELLOW));
+            sender.sendMessage(Msg.hint("/bounty cancel <player>", "Cancel and partially refund your contribution."));
             return true;
         }
         Optional<KnownPlayer> target = bountyService.resolveKnownPlayer(args[1]);
         if (target.isEmpty()) {
-            sender.sendMessage(Component.text("Unknown player: " + args[1], NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Unknown player: " + args[1] + "."));
             return true;
         }
         ServiceResult result = bountyService.cancelOwnBounty(player.getUniqueId(), player.getName(), target.get());
-        sender.sendMessage(Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED));
+        sender.sendMessage(Msg.result(result.success(), result.message()));
         return true;
     }
 
@@ -236,7 +234,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             return handleAdminTestDiscord(sender);
         }
         if (args.length < 3) {
-            sender.sendMessage(Component.text("/bounty admin <add|remove|refund|history> ...", NamedTextColor.YELLOW));
+            sendAdminHelp(sender);
             return true;
         }
         return switch (args[1].toLowerCase()) {
@@ -254,16 +252,16 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
     private boolean handleAdminAdd(CommandSender sender, String[] args) {
         if (!sender.hasPermission("bounty.admin.manage")) {
-            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("You do not have permission."));
             return true;
         }
         if (args.length < 4) {
-            sender.sendMessage(Component.text("/bounty admin add <player> <amount> [placer]", NamedTextColor.YELLOW));
+            sender.sendMessage(Msg.hint("/bounty admin add <player> <amount> [placer]", "Add a bounty without withdrawing money."));
             return true;
         }
         Optional<KnownPlayer> target = bountyService.resolveKnownPlayer(args[2]);
         if (target.isEmpty()) {
-            sender.sendMessage(Component.text("Unknown player: " + args[2], NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Unknown player: " + args[2] + "."));
             return true;
         }
         OptionalLong amount = parsePositiveLong(args[3], sender, "Amount");
@@ -274,73 +272,73 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         if (args.length >= 5) {
             placer = bountyService.resolveKnownPlayer(args[4]);
             if (placer.isEmpty()) {
-                sender.sendMessage(Component.text("Unknown player: " + args[4], NamedTextColor.RED));
+                sender.sendMessage(Msg.err("Unknown player: " + args[4] + "."));
                 return true;
             }
         }
         ServiceResult result = bountyService.adminAddBounty(target.get(), amount.getAsLong(), placer.orElse(null));
-        sender.sendMessage(Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED));
+        sender.sendMessage(Msg.result(result.success(), result.message()));
         return true;
     }
 
     private boolean handleAdminRemove(CommandSender sender, String[] args) {
         if (!sender.hasPermission("bounty.admin.manage")) {
-            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("You do not have permission."));
             return true;
         }
         Optional<KnownPlayer> target = bountyService.resolveKnownPlayer(args[2]);
         if (target.isEmpty()) {
-            sender.sendMessage(Component.text("Unknown player: " + args[2], NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Unknown player: " + args[2] + "."));
             return true;
         }
         ServiceResult result = bountyService.adminRemoveTarget(target.get());
-        sender.sendMessage(Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED));
+        sender.sendMessage(Msg.result(result.success(), result.message()));
         return true;
     }
 
     private boolean handleAdminRefund(CommandSender sender, String[] args) {
         if (!sender.hasPermission("bounty.admin.manage")) {
-            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("You do not have permission."));
             return true;
         }
         Optional<KnownPlayer> target = bountyService.resolveKnownPlayer(args[2]);
         if (target.isEmpty()) {
-            sender.sendMessage(Component.text("Unknown player: " + args[2], NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Unknown player: " + args[2] + "."));
             return true;
         }
         Optional<KnownPlayer> placer = Optional.empty();
         if (args.length >= 4) {
             placer = bountyService.resolveKnownPlayer(args[3]);
             if (placer.isEmpty()) {
-                sender.sendMessage(Component.text("Unknown player: " + args[3], NamedTextColor.RED));
+                sender.sendMessage(Msg.err("Unknown player: " + args[3] + "."));
                 return true;
             }
         }
         ServiceResult result = bountyService.adminRefundTarget(target.get(), placer.orElse(null));
-        sender.sendMessage(Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED));
+        sender.sendMessage(Msg.result(result.success(), result.message()));
         return true;
     }
 
     private boolean handleAdminHistory(CommandSender sender, String[] args) {
         if (!sender.hasPermission("bounty.admin.history")) {
-            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("You do not have permission."));
             return true;
         }
         Optional<KnownPlayer> target = bountyService.resolveKnownPlayer(args[2]);
         if (target.isEmpty()) {
-            sender.sendMessage(Component.text("Unknown player: " + args[2], NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Unknown player: " + args[2] + "."));
             return true;
         }
         List<BountyClaim> claims = bountyService.getClaimHistory(target.get().uuid());
-        sender.sendMessage(Component.text("Claim history for " + target.get().name(), NamedTextColor.GOLD));
+        sender.sendMessage(Msg.header("Claim History  —  " + target.get().name()));
         if (claims.isEmpty()) {
-            sender.sendMessage(Component.text("No claim history found.", NamedTextColor.GRAY));
+            sender.sendMessage(Msg.muted("No claim history found."));
             return true;
         }
         for (BountyClaim claim : claims) {
-            sender.sendMessage(Component.text(
-                "- " + claim.killerName() + " claimed " + dev.ariqq.bounty.util.MoneyFormatter.format(claim.totalAmount()) + " from " + claim.sourceCount() + " contribution(s).",
-                NamedTextColor.YELLOW
+            sender.sendMessage(Msg.entry(
+                claim.killerName() + " claimed " + MoneyFormatter.format(claim.totalAmount())
+                    + " from " + claim.sourceCount() + " contribution(s)."
             ));
         }
         return true;
@@ -348,72 +346,61 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
     private boolean handleAdminTestDiscord(CommandSender sender) {
         if (!sender.hasPermission("bounty.admin.manage")) {
-            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("You do not have permission."));
             return true;
         }
         ServiceResult result = bountyService.sendDiscordTest(sender.getName());
-        sender.sendMessage(Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED));
+        sender.sendMessage(Msg.result(result.success(), result.message()));
         return true;
     }
 
     private boolean handleReload(CommandSender sender) {
         if (!sender.hasPermission("bounty.admin.reload")) {
-            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err("You do not have permission."));
             return true;
         }
         plugin.reloadBountyConfig();
-        sender.sendMessage(Component.text("Bounty config reloaded.", NamedTextColor.GREEN));
+        sender.sendMessage(Msg.ok("Configuration reloaded successfully."));
         return true;
     }
 
     private void sendHelp(CommandSender sender) {
-        List<String> lines = new ArrayList<>(Arrays.asList(
-            "/bounty",
-            "/bounty info <player>",
-            "/bounty list [page]",
-            "/bounty top [limit]"
-        ));
+        sender.sendMessage(Msg.header("Bounty Commands"));
+        sender.sendMessage(Msg.hint("/bounty", "Open the bounty GUI."));
+        sender.sendMessage(Msg.hint("/bounty info <player>", "Show active bounty info for a player."));
+        sender.sendMessage(Msg.hint("/bounty list [page]", "List all active bounty targets."));
+        sender.sendMessage(Msg.hint("/bounty top [limit]", "Show the highest bounty pools."));
         if (sender instanceof Player && sender.hasPermission("bounty.place")) {
-            lines.add("/bounty place <player> <amount>");
+            sender.sendMessage(Msg.hint("/bounty place <player> <amount>", "Place a bounty on a player."));
         }
         if (sender instanceof Player) {
-            lines.add("/bounty my");
+            sender.sendMessage(Msg.hint("/bounty my", "View your active contributions."));
             if (sender.hasPermission("bounty.cancel.own")) {
-                lines.add("/bounty cancel <player>");
+                sender.sendMessage(Msg.hint("/bounty cancel <player>", "Cancel and partially refund your bounty."));
             }
         }
         if (sender.hasPermission("bounty.admin.manage") || sender.hasPermission("bounty.admin.history")) {
-            lines.add("/bounty admin ...");
+            sender.sendMessage(Msg.hint("/bounty admin ...", "Admin management commands."));
         }
         if (sender.hasPermission("bounty.admin.reload")) {
-            lines.add("/bounty reload");
-        }
-        sender.sendMessage(Component.text("Bounty commands", NamedTextColor.GOLD));
-        for (String line : lines) {
-            sender.sendMessage(Component.text(line, NamedTextColor.YELLOW));
+            sender.sendMessage(Msg.hint("/bounty reload", "Reload the plugin configuration."));
         }
     }
 
     private void sendAdminHelp(CommandSender sender) {
-        List<String> lines = new ArrayList<>();
-        if (sender.hasPermission("bounty.admin.manage")) {
-            lines.addAll(List.of(
-                "/bounty admin add <player> <amount> [placer]",
-                "/bounty admin remove <player>",
-                "/bounty admin refund <player> [placer]",
-                "/bounty admin testdiscord"
-            ));
-        }
-        if (sender.hasPermission("bounty.admin.history")) {
-            lines.add("/bounty admin history <player>");
-        }
-        if (lines.isEmpty()) {
-            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+        if (!sender.hasPermission("bounty.admin.manage") && !sender.hasPermission("bounty.admin.history")) {
+            sender.sendMessage(Msg.err("You do not have permission."));
             return;
         }
-        sender.sendMessage(Component.text("Bounty admin commands", NamedTextColor.GOLD));
-        for (String line : lines) {
-            sender.sendMessage(Component.text(line, NamedTextColor.YELLOW));
+        sender.sendMessage(Msg.header("Bounty Admin Commands"));
+        if (sender.hasPermission("bounty.admin.manage")) {
+            sender.sendMessage(Msg.hint("/bounty admin add <player> <amount> [placer]", "Add bounty without withdrawing."));
+            sender.sendMessage(Msg.hint("/bounty admin remove <player>", "Remove non-refundable contributions."));
+            sender.sendMessage(Msg.hint("/bounty admin refund <player> [placer]", "Refund contributions to placers."));
+            sender.sendMessage(Msg.hint("/bounty admin testdiscord", "Send a Discord webhook test embed."));
+        }
+        if (sender.hasPermission("bounty.admin.history")) {
+            sender.sendMessage(Msg.hint("/bounty admin history <player>", "Show recent claim history."));
         }
     }
 
@@ -422,11 +409,11 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         try {
             value = Long.parseLong(input);
         } catch (NumberFormatException exception) {
-            sender.sendMessage(Component.text("Invalid " + label.toLowerCase() + ": " + input, NamedTextColor.RED));
+            sender.sendMessage(Msg.err("Invalid " + label.toLowerCase() + ": " + input + "."));
             return OptionalLong.empty();
         }
         if (value <= 0) {
-            sender.sendMessage(Component.text(label + " must be greater than 0.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err(label + " must be greater than 0."));
             return OptionalLong.empty();
         }
         return OptionalLong.of(value);
@@ -434,7 +421,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
     private int safeInt(long value, CommandSender sender, String label) {
         if (value > Integer.MAX_VALUE) {
-            sender.sendMessage(Component.text(label + " is too large.", NamedTextColor.RED));
+            sender.sendMessage(Msg.err(label + " is too large."));
             return -1;
         }
         return (int) value;
