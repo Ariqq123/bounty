@@ -25,10 +25,14 @@ public record BountyConfig(
     boolean discordNotifyCancel,
     boolean discordNotifyAdmin
 ) {
+    public static final long MAX_SAFE_ECONOMY_AMOUNT = 9_007_199_254_740_991L;
+
     public static BountyConfig fromConfig(FileConfiguration config) {
-        long minAmount = Math.max(1L, config.getLong("bounty.min-amount", 100L));
+        long minAmount = Math.min(MAX_SAFE_ECONOMY_AMOUNT, Math.max(1L, config.getLong("bounty.min-amount", 100L)));
         long configuredMaxAmount = config.getLong("bounty.max-amount", 0L);
-        long maxAmount = configuredMaxAmount <= 0L ? 0L : Math.max(minAmount, configuredMaxAmount);
+        long maxAmount = configuredMaxAmount <= 0L
+            ? 0L
+            : Math.min(MAX_SAFE_ECONOMY_AMOUNT, Math.max(minAmount, configuredMaxAmount));
         int refundPercent = clamp(config.getInt("bounty.cancel-refund-percent", 80), 0, 100);
         int guiPageSize = clamp(config.getInt("gui.page-size", 28), 9, 45);
         return new BountyConfig(

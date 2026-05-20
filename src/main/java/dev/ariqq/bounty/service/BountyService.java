@@ -58,6 +58,9 @@ public final class BountyService {
         if (placerUuid.equals(target.uuid())) {
             return ServiceResult.failure("You cannot place a bounty on yourself.");
         }
+        if (amount > BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) {
+            return ServiceResult.failure("Maximum supported bounty is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".");
+        }
         if (amount < config().minAmount()) {
             return ServiceResult.failure("Minimum bounty is " + config().minAmount() + ".");
         }
@@ -85,6 +88,9 @@ public final class BountyService {
     }
 
     public ServiceResult adminAddBounty(KnownPlayer target, long amount, KnownPlayer placer) {
+        if (amount > BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) {
+            return ServiceResult.failure("Maximum supported bounty is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".");
+        }
         if (amount < config().minAmount()) {
             return ServiceResult.failure("Minimum bounty is " + config().minAmount() + ".");
         }

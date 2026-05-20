@@ -9,6 +9,7 @@ import dev.ariqq.bounty.model.ContributionStatus;
 import dev.ariqq.bounty.model.KnownPlayer;
 import dev.ariqq.bounty.model.ServiceResult;
 import dev.ariqq.bounty.storage.BountyRepository;
+import dev.ariqq.bounty.util.MoneyFormatter;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -212,6 +213,54 @@ class BountyServiceTest {
         ServiceResult result = service.adminAddBounty(new KnownPlayer(target, "Target"), 1_500L, null);
 
         Assertions.assertFalse(result.success());
+        Assertions.assertEquals(0L, repository.getUnsafeTotal(target));
+        Assertions.assertEquals(0, notifier.placedEvents);
+    }
+
+    @Test
+    void placeRejectsAmountsAboveSafeEconomyPrecision() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID placer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        economy.setBalance(placer, Double.MAX_VALUE);
+        ServiceResult result = service.placeBounty(
+            placer,
+            "Hunter",
+            new KnownPlayer(target, "Target"),
+            BountyConfig.MAX_SAFE_ECONOMY_AMOUNT + 1L
+        );
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals(
+            "Maximum supported bounty is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".",
+            result.message()
+        );
+        Assertions.assertEquals(0L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
+    void adminAddRejectsAmountsAboveSafeEconomyPrecision() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+
+        ServiceResult result = service.adminAddBounty(
+            new KnownPlayer(target, "Target"),
+            BountyConfig.MAX_SAFE_ECONOMY_AMOUNT + 1L,
+            null
+        );
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals(
+            "Maximum supported bounty is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".",
+            result.message()
+        );
         Assertions.assertEquals(0L, repository.getUnsafeTotal(target));
         Assertions.assertEquals(0, notifier.placedEvents);
     }

@@ -35,4 +35,16 @@ class BountyConfigTest {
         Assertions.assertEquals(500L, config.minAmount());
         Assertions.assertEquals(500L, config.maxAmount());
     }
+
+    @Test
+    void fromConfigClampsAmountsToSafeEconomyPrecision() {
+        YamlConfiguration configuration = new YamlConfiguration();
+        configuration.set("bounty.min-amount", Long.MAX_VALUE);
+        configuration.set("bounty.max-amount", Long.MAX_VALUE);
+
+        BountyConfig config = BountyConfig.fromConfig(configuration);
+
+        Assertions.assertEquals(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT, config.minAmount());
+        Assertions.assertEquals(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT, config.maxAmount());
+    }
 }
