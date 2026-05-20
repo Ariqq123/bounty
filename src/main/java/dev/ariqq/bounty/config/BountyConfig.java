@@ -26,11 +26,14 @@ public record BountyConfig(
     boolean discordNotifyAdmin
 ) {
     public static BountyConfig fromConfig(FileConfiguration config) {
+        long minAmount = Math.max(1L, config.getLong("bounty.min-amount", 100L));
+        long configuredMaxAmount = config.getLong("bounty.max-amount", 0L);
+        long maxAmount = configuredMaxAmount <= 0L ? 0L : Math.max(minAmount, configuredMaxAmount);
         int refundPercent = clamp(config.getInt("bounty.cancel-refund-percent", 80), 0, 100);
         int guiPageSize = clamp(config.getInt("gui.page-size", 28), 9, 45);
         return new BountyConfig(
-            config.getLong("bounty.min-amount", 100L),
-            config.getLong("bounty.max-amount", 0L),
+            minAmount,
+            maxAmount,
             refundPercent,
             Math.max(0L, config.getLong("anti-abuse.claim-cooldown-seconds-per-pair", 3600L)),
             guiPageSize,

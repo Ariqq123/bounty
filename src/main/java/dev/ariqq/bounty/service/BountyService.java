@@ -384,12 +384,11 @@ public final class BountyService {
         if (!config().discordEnabled()) {
             return ServiceResult.failure("Discord integration is disabled in config.");
         }
-        if (config().discordWebhookUrl() == null || config().discordWebhookUrl().trim().isEmpty()) {
+        String webhookUrl = config().discordWebhookUrl();
+        if (webhookUrl == null || webhookUrl.trim().isEmpty()) {
             return ServiceResult.failure("Discord webhook URL is not configured.");
         }
-        try {
-            URI.create(config().discordWebhookUrl().trim());
-        } catch (IllegalArgumentException exception) {
+        if (!isValidWebhookUrl(webhookUrl)) {
             return ServiceResult.failure("Discord webhook URL is invalid.");
         }
         notifier.notifyTestMessage(requestedBy);
@@ -421,6 +420,20 @@ public final class BountyService {
             return false;
         }
         return lastClaim.get().plusSeconds(config().claimCooldownSecondsPerPair()).isAfter(Instant.now());
+    }
+
+    private boolean isValidWebhookUrl(String webhookUrl) {
+        try {
+            URI uri = URI.create(webhookUrl.trim());
+            String scheme = uri.getScheme();
+            return uri.isAbsolute()
+                && scheme != null
+                && ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
+                && uri.getHost() != null
+                && !uri.getHost().isBlank();
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     private void compensateDeposit(UUID playerUuid, String playerName, long amount, String context) {

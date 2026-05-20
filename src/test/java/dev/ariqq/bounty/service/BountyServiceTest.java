@@ -237,6 +237,19 @@ class BountyServiceTest {
         Assertions.assertEquals(0, notifier.testEvents);
     }
 
+    @Test
+    void discordTestFailsWhenWebhookUrlIsRelative() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::relativeDiscordConfig);
+
+        ServiceResult result = service.sendDiscordTest("Console");
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals(0, notifier.testEvents);
+    }
+
     private static BountyConfig testConfig() {
         return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "https://example.test/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
     }
@@ -247,6 +260,10 @@ class BountyServiceTest {
 
     private static BountyConfig invalidDiscordConfig() {
         return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "://bad-url", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
+    }
+
+    private static BountyConfig relativeDiscordConfig() {
+        return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "discord/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
     }
 
     private static final class FakeNotifier implements BountyNotifier {

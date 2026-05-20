@@ -134,6 +134,10 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         if (!config.discordEnabled() || webhookUrl.isEmpty()) {
             return;
         }
+        if (!isValidWebhookUrl(webhookUrl)) {
+            logger.warning("Discord webhook URL is invalid.");
+            return;
+        }
 
         String payload = buildPayload(config, title, description, color, fieldsJson);
         HttpRequest request;
@@ -160,6 +164,20 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
                 logger.warning("Discord webhook request failed: " + throwable.getMessage());
                 return null;
             });
+    }
+
+    private boolean isValidWebhookUrl(String webhookUrl) {
+        try {
+            URI uri = URI.create(webhookUrl);
+            String scheme = uri.getScheme();
+            return uri.isAbsolute()
+                && scheme != null
+                && ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
+                && uri.getHost() != null
+                && !uri.getHost().isBlank();
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     private String buildPayload(BountyConfig config, String title, String description, int color, String fieldsJson) {
