@@ -61,7 +61,7 @@ public record BountyConfig(
     }
 
     public long refundAmount(long originalAmount) {
-        return Math.round(originalAmount * (cancelRefundPercent / 100.0D));
+        return ((originalAmount * cancelRefundPercent) + 50L) / 100L;
     }
 
     private static int clamp(int value, int min, int max) {

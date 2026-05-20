@@ -47,4 +47,16 @@ class BountyConfigTest {
         Assertions.assertEquals(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT, config.minAmount());
         Assertions.assertEquals(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT, config.maxAmount());
     }
+
+    @Test
+    void refundAmountUsesExactIntegerRoundingForLargeValues() {
+        YamlConfiguration configuration = new YamlConfiguration();
+        configuration.set("bounty.cancel-refund-percent", 33);
+
+        BountyConfig config = BountyConfig.fromConfig(configuration);
+
+        long refund = config.refundAmount(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT);
+
+        Assertions.assertEquals(2_972_375_754_064_527L, refund);
+    }
 }
