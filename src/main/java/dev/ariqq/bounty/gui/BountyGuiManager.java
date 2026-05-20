@@ -214,7 +214,7 @@ public final class BountyGuiManager {
                     openTargetSelect(player, holder.page());
                     return;
                 }
-                prompts.put(player.getUniqueId(), new PendingAmountPrompt(target, Instant.now()));
+                rememberPrompt(player.getUniqueId(), target, Instant.now());
                 player.closeInventory();
                 player.sendMessage(Component.text(
                     "Type the bounty amount for " + target.name() + " in chat, or type cancel.",
@@ -250,7 +250,9 @@ public final class BountyGuiManager {
             return true;
         }
 
-        prompts.remove(player.getUniqueId());
+        if (!clearPromptIfMatches(player.getUniqueId(), prompt.target(), prompt.createdAt())) {
+            return true;
+        }
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (!player.isOnline() || !player.isValid()) {
                 return;
@@ -267,6 +269,14 @@ public final class BountyGuiManager {
 
     public void clearPrompt(UUID playerUuid) {
         prompts.remove(playerUuid);
+    }
+
+    void rememberPrompt(UUID playerUuid, KnownPlayer target, Instant createdAt) {
+        prompts.put(playerUuid, new PendingAmountPrompt(target, createdAt));
+    }
+
+    boolean clearPromptIfMatches(UUID playerUuid, KnownPlayer target, Instant createdAt) {
+        return prompts.remove(playerUuid, new PendingAmountPrompt(target, createdAt));
     }
 
     private void handleMainClick(Player player, String title) {
