@@ -128,12 +128,30 @@ class BountyServiceTest {
         FakeNotifier notifier = new FakeNotifier();
         BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
 
-        service.sendDiscordTest("Console");
+        ServiceResult result = service.sendDiscordTest("Console");
 
+        Assertions.assertTrue(result.success());
         Assertions.assertEquals(1, notifier.testEvents);
     }
 
+    @Test
+    void discordTestFailsWhenDisabled() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::disabledDiscordConfig);
+
+        ServiceResult result = service.sendDiscordTest("Console");
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals(0, notifier.testEvents);
+    }
+
     private static BountyConfig testConfig() {
+        return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "https://example.test/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
+    }
+
+    private static BountyConfig disabledDiscordConfig() {
         return new BountyConfig(100, 0, 80, 3600, 28, false, false, false, "", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
     }
 

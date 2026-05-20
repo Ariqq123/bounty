@@ -313,15 +313,14 @@ public final class BountyService {
     }
 
     public List<KnownPlayer> listKnownPlayers() {
-        List<KnownPlayer> players = Bukkit.getOnlinePlayers().stream()
-            .map(player -> new KnownPlayer(player.getUniqueId(), player.getName()))
-            .toList();
-        if (!players.isEmpty()) {
-            return players;
-        }
-        return java.util.Arrays.stream(Bukkit.getOfflinePlayers())
+        java.util.Map<UUID, KnownPlayer> players = new java.util.LinkedHashMap<>();
+        Bukkit.getOnlinePlayers().forEach(player ->
+            players.put(player.getUniqueId(), new KnownPlayer(player.getUniqueId(), player.getName()))
+        );
+        java.util.Arrays.stream(Bukkit.getOfflinePlayers())
             .filter(player -> player.getName() != null)
-            .map(player -> new KnownPlayer(player.getUniqueId(), player.getName()))
+            .forEach(player -> players.putIfAbsent(player.getUniqueId(), new KnownPlayer(player.getUniqueId(), player.getName())));
+        return players.values().stream()
             .sorted(Comparator.comparing(KnownPlayer::name, String.CASE_INSENSITIVE_ORDER))
             .toList();
     }
@@ -345,8 +344,15 @@ public final class BountyService {
         sender.sendMessage(Component.text("Contributors: " + targetSummary.contributorCount(), NamedTextColor.YELLOW));
     }
 
-    public void sendDiscordTest(String requestedBy) {
+    public ServiceResult sendDiscordTest(String requestedBy) {
+        if (!config().discordEnabled()) {
+            return ServiceResult.failure("Discord integration is disabled in config.");
+        }
+        if (config().discordWebhookUrl() == null || config().discordWebhookUrl().trim().isEmpty()) {
+            return ServiceResult.failure("Discord webhook URL is not configured.");
+        }
         notifier.notifyTestMessage(requestedBy);
+        return ServiceResult.success("Discord test embed queued.");
     }
 
     private void announcePlacement(String placerName, String targetName, long amount, long total) {
@@ -362,7 +368,7 @@ public final class BountyService {
         }
         if (config().broadcastPlace()) {
             Bukkit.broadcast(Component.text(
-                placerName + " placed bounty of " + amount + " on " + targetName + ". Total pool: " + total + ".",
+                placerName + " placed bounty of " + MoneyFormatter.format(amount) + " on " + targetName + ". Total pool: " + MoneyFormatter.format(total) + ".",
                 NamedTextColor.GOLD
             ));
         }

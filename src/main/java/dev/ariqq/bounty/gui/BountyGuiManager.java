@@ -6,6 +6,7 @@ import dev.ariqq.bounty.model.BountyTargetSummary;
 import dev.ariqq.bounty.model.KnownPlayer;
 import dev.ariqq.bounty.model.ServiceResult;
 import dev.ariqq.bounty.service.BountyService;
+import dev.ariqq.bounty.util.MoneyFormatter;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -74,7 +75,7 @@ public final class BountyGuiManager {
         for (BountyContribution contribution : contributions.stream().limit(45).toList()) {
             inventory.setItem(slot++, item(
                 Material.NAME_TAG,
-                contribution.targetName() + " - " + contribution.amount(),
+                contribution.targetName() + " - " + MoneyFormatter.format(contribution.amount()),
                 "Click to cancel and refund " + bountyService.config().cancelRefundPercent() + " percent."
             ));
         }
@@ -224,7 +225,7 @@ public final class BountyGuiManager {
         for (BountyTargetSummary summary : summaries.stream().limit(45).toList()) {
             inventory.setItem(slot++, item(
                 Material.PLAYER_HEAD,
-                summary.targetName() + " - " + summary.totalAmount(),
+                summary.targetName() + " - " + MoneyFormatter.format(summary.totalAmount()),
                 summary.contributorCount() + " contributors. Click for details."
             ));
         }

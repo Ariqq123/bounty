@@ -199,6 +199,9 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean handleAdmin(CommandSender sender, String[] args) {
+        if (args.length == 2 && "testdiscord".equalsIgnoreCase(args[1])) {
+            return handleAdminTestDiscord(sender);
+        }
         if (args.length < 3) {
             sender.sendMessage(Component.text("/bounty admin <add|remove|refund|history> ...", NamedTextColor.YELLOW));
             return true;
@@ -286,7 +289,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         }
         for (BountyClaim claim : claims) {
             sender.sendMessage(Component.text(
-                "- " + claim.killerName() + " claimed " + claim.totalAmount() + " from " + claim.sourceCount() + " contribution(s).",
+                "- " + claim.killerName() + " claimed " + dev.ariqq.bounty.util.MoneyFormatter.format(claim.totalAmount()) + " from " + claim.sourceCount() + " contribution(s).",
                 NamedTextColor.YELLOW
             ));
         }
@@ -298,8 +301,8 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
             return true;
         }
-        bountyService.sendDiscordTest(sender.getName());
-        sender.sendMessage(Component.text("Discord test embed queued.", NamedTextColor.GREEN));
+        ServiceResult result = bountyService.sendDiscordTest(sender.getName());
+        sender.sendMessage(Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED));
         return true;
     }
 
