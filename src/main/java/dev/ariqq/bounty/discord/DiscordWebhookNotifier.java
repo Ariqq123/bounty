@@ -1,7 +1,6 @@
 package dev.ariqq.bounty.discord;
 
 import dev.ariqq.bounty.config.BountyConfig;
-import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -12,6 +11,11 @@ import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 public final class DiscordWebhookNotifier implements BountyNotifier {
+    private static final int COLOR_GOLD = 0xF1C40F;
+    private static final int COLOR_GREEN = 0x2ECC71;
+    private static final int COLOR_RED = 0xE74C3C;
+    private static final int COLOR_BLUE = 0x3498DB;
+
     private final HttpClient httpClient;
     private final Supplier<BountyConfig> configSupplier;
     private final Logger logger;
@@ -31,7 +35,16 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             return;
         }
         String actor = adminAction ? "[ADMIN] " + placerName : placerName;
-        sendMessage("Bounty placed: **" + actor + "** added **" + amount + "** on **" + targetName + "**. Total pool: **" + totalPool + "**.");
+        sendEmbed(
+            "Bounty Placed",
+            actor + " added a bounty on " + targetName + ".",
+            adminAction ? COLOR_BLUE : COLOR_GOLD,
+            """
+            [{"name":"Target","value":"%s","inline":true},
+            {"name":"Added Amount","value":"%d","inline":true},
+            {"name":"Total Pool","value":"%d","inline":true}]
+            """.formatted(escapeJson(targetName), amount, totalPool)
+        );
     }
 
     @Override
@@ -40,7 +53,15 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         if (!config.discordNotifyCancel()) {
             return;
         }
-        sendMessage("Bounty cancelled: **" + placerName + "** cancelled their bounty on **" + targetName + "** and received **" + refundAmount + "** back.");
+        sendEmbed(
+            "Bounty Cancelled",
+            placerName + " cancelled their bounty contribution.",
+            COLOR_RED,
+            """
+            [{"name":"Target","value":"%s","inline":true},
+            {"name":"Refunded","value":"%d","inline":true}]
+            """.formatted(escapeJson(targetName), refundAmount)
+        );
     }
 
     @Override
@@ -49,7 +70,16 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         if (!config.discordNotifyClaim()) {
             return;
         }
-        sendMessage("Bounty claimed: **" + killerName + "** killed **" + targetName + "** and earned **" + totalAmount + "** from **" + sourceCount + "** contribution(s).");
+        sendEmbed(
+            "Bounty Claimed",
+            killerName + " claimed the bounty reward.",
+            COLOR_GREEN,
+            """
+            [{"name":"Target","value":"%s","inline":true},
+            {"name":"Reward","value":"%d","inline":true},
+            {"name":"Contributions","value":"%d","inline":true}]
+            """.formatted(escapeJson(targetName), totalAmount, sourceCount)
+        );
     }
 
     @Override
@@ -58,7 +88,15 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         if (!config.discordNotifyAdmin()) {
             return;
         }
-        sendMessage("Admin action: removed **" + removedContributions + "** active contribution(s) from **" + targetName + "**.");
+        sendEmbed(
+            "Admin Action",
+            "An admin removed active bounty contributions.",
+            COLOR_BLUE,
+            """
+            [{"name":"Target","value":"%s","inline":true},
+            {"name":"Removed Contributions","value":"%d","inline":true}]
+            """.formatted(escapeJson(targetName), removedContributions)
+        );
     }
 
     @Override
@@ -67,17 +105,26 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         if (!config.discordNotifyAdmin()) {
             return;
         }
-        sendMessage("Admin action: refunded **" + refundedAmount + "** across **" + refundedContributions + "** contribution(s) for **" + targetName + "**.");
+        sendEmbed(
+            "Admin Refund",
+            "An admin refunded bounty contributions.",
+            COLOR_BLUE,
+            """
+            [{"name":"Target","value":"%s","inline":true},
+            {"name":"Refunded Amount","value":"%d","inline":true},
+            {"name":"Refunded Contributions","value":"%d","inline":true}]
+            """.formatted(escapeJson(targetName), refundedAmount, refundedContributions)
+        );
     }
 
-    private void sendMessage(String content) {
+    private void sendEmbed(String title, String description, int color, String fieldsJson) {
         BountyConfig config = configSupplier.get();
         String webhookUrl = config.discordWebhookUrl() == null ? "" : config.discordWebhookUrl().trim();
         if (!config.discordEnabled() || webhookUrl.isEmpty()) {
             return;
         }
 
-        String payload = buildPayload(config, content);
+        String payload = buildPayload(config, title, description, color, fieldsJson);
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(webhookUrl))
             .timeout(Duration.ofSeconds(10))
@@ -98,10 +145,15 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             });
     }
 
-    private String buildPayload(BountyConfig config, String content) {
+    private String buildPayload(BountyConfig config, String title, String description, int color, String fieldsJson) {
         StringBuilder builder = new StringBuilder();
         builder.append("{");
-        builder.append("\"content\":\"").append(escapeJson(content)).append("\"");
+        builder.append("\"embeds\":[{");
+        builder.append("\"title\":\"").append(escapeJson(title)).append("\",");
+        builder.append("\"description\":\"").append(escapeJson(description)).append("\",");
+        builder.append("\"color\":").append(color).append(",");
+        builder.append("\"fields\":").append(fieldsJson.replace('\n', ' ').trim());
+        builder.append("}]");
         appendOptional(builder, "username", config.discordUsername());
         appendOptional(builder, "avatar_url", config.discordAvatarUrl());
         builder.append("}");

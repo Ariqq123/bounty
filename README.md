@@ -13,7 +13,7 @@ This project currently targets `Paper 1.21.x` and uses `Vault` plus a Vault-comp
 - Player GUI for browsing bounty targets, top bounties, personal contributions, and placing bounties
 - SQLite storage for active bounties, claim history, and anti-abuse cooldown tracking
 - Admin commands for adding, removing, refunding, and inspecting bounty history
-- Optional Discord webhook notifications for bounty activity
+- Optional Discord webhook embed notifications for bounty activity
 
 ## Requirements
 
@@ -121,7 +121,7 @@ Notes:
 - `max-amount: 0` means no upper limit.
 - `claim-cooldown-seconds-per-pair` is the cooldown for the same killer farming the same target repeatedly.
 - Bounty data is stored in an SQLite database file created in the plugin data folder.
-- Discord integration uses a standard Discord webhook URL and sends notifications asynchronously.
+- Discord integration uses a standard Discord webhook URL, sends embeds asynchronously, and does not block the main server thread.
 
 ## Discord Integration
 
@@ -132,7 +132,7 @@ If you want bounty activity in a Discord channel:
 3. Set `discord.enabled: true`.
 4. Optionally customize `discord.username`, `discord.avatar-url`, and the enabled event toggles.
 
-Supported webhook events:
+Supported webhook embed events:
 
 - New player bounty placements
 - Bounty claims
