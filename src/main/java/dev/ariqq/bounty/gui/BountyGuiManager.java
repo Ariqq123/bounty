@@ -51,8 +51,17 @@ public final class BountyGuiManager {
         Inventory inventory = Bukkit.createInventory(holder, 54, Component.text("Active Bounties"));
         holder.setInventory(inventory);
         List<BountyTargetSummary> summaries = bountyService.listActiveTargets(page, bountyService.config().guiPageSize());
+        int totalTargets = bountyService.countActiveTargets();
         fillSummaryItems(inventory, summaries);
-        applyNavigation(inventory, page);
+        if (summaries.isEmpty()) {
+            inventory.setItem(22, item(Material.BARRIER, "No Active Bounties", "There are no bounty targets on this page."));
+        }
+        applyNavigation(
+            inventory,
+            page,
+            page > 1,
+            page * bountyService.config().guiPageSize() < totalTargets
+        );
         player.openInventory(inventory);
     }
 
@@ -95,7 +104,10 @@ public final class BountyGuiManager {
         for (KnownPlayer knownPlayer : knownPlayers.stream().skip(start).limit(45).toList()) {
             inventory.setItem(slot++, item(Material.PLAYER_HEAD, knownPlayer.name(), "Click to enter a bounty amount in chat."));
         }
-        applyNavigation(inventory, page);
+        if (slot == 0) {
+            inventory.setItem(22, item(Material.BARRIER, "No Available Targets", "No known players are available on this page."));
+        }
+        applyNavigation(inventory, page, page > 1, start + 45 < knownPlayers.size());
         player.openInventory(inventory);
     }
 
@@ -231,10 +243,14 @@ public final class BountyGuiManager {
         }
     }
 
-    private void applyNavigation(Inventory inventory, int page) {
-        inventory.setItem(45, item(Material.ARROW, "Previous Page", "Go to page " + Math.max(1, page - 1) + "."));
+    private void applyNavigation(Inventory inventory, int page, boolean hasPrevious, boolean hasNext) {
+        if (hasPrevious) {
+            inventory.setItem(45, item(Material.ARROW, "Previous Page", "Go to page " + Math.max(1, page - 1) + "."));
+        }
         inventory.setItem(49, item(Material.BARRIER, "Back", "Return to the main menu."));
-        inventory.setItem(53, item(Material.ARROW, "Next Page", "Go to page " + (page + 1) + "."));
+        if (hasNext) {
+            inventory.setItem(53, item(Material.ARROW, "Next Page", "Go to page " + (page + 1) + "."));
+        }
     }
 
     private ItemStack item(Material material, String name, String loreLine) {

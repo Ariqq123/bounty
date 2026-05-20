@@ -122,6 +122,26 @@ class BountyServiceTest {
     }
 
     @Test
+    void activeTargetCountTracksUniqueTargets() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID placerOne = UUID.randomUUID();
+        UUID placerTwo = UUID.randomUUID();
+        UUID targetOne = UUID.randomUUID();
+        UUID targetTwo = UUID.randomUUID();
+
+        economy.setBalance(placerOne, 10_000);
+        economy.setBalance(placerTwo, 10_000);
+        service.placeBounty(placerOne, "HunterOne", new KnownPlayer(targetOne, "TargetOne"), 250);
+        service.placeBounty(placerTwo, "HunterTwo", new KnownPlayer(targetOne, "TargetOne"), 300);
+        service.placeBounty(placerOne, "HunterOne", new KnownPlayer(targetTwo, "TargetTwo"), 400);
+
+        Assertions.assertEquals(2, service.countActiveTargets());
+    }
+
+    @Test
     void discordTestNotificationCanBeTriggered() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
@@ -312,6 +332,15 @@ class BountyServiceTest {
                 return Optional.empty();
             }
             return Optional.of(new BountyTargetSummary(targetUuid, byTarget.getFirst().targetName(), getActiveTotalForTarget(targetUuid), byTarget.size()));
+        }
+
+        @Override
+        public int countActiveTargets() {
+            return (int) contributions.values().stream()
+                .filter(value -> value.status() == ContributionStatus.ACTIVE)
+                .map(BountyContribution::targetUuid)
+                .distinct()
+                .count();
         }
 
         @Override

@@ -277,6 +277,15 @@ public final class BountyService {
         }
     }
 
+    public int countActiveTargets() {
+        try {
+            return repository.countActiveTargets();
+        } catch (SQLException exception) {
+            logger.warning("Failed to count active targets: " + exception.getMessage());
+            return 0;
+        }
+    }
+
     public List<BountyTargetSummary> topActiveTargets(int limit) {
         try {
             return repository.listTopTargetSummaries(limit);

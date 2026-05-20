@@ -23,6 +23,8 @@ public interface BountyRepository extends AutoCloseable {
 
     Optional<BountyTargetSummary> getTargetSummary(UUID targetUuid) throws SQLException;
 
+    int countActiveTargets() throws SQLException;
+
     List<BountyTargetSummary> listActiveTargetSummaries(int limit, int offset) throws SQLException;
 
     List<BountyTargetSummary> listTopTargetSummaries(int limit) throws SQLException;

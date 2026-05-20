@@ -18,11 +18,14 @@ public final class BountyGuiListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-        if (!(event.getInventory().getHolder() instanceof BountyInventoryView)) {
+        if (!(event.getView().getTopInventory().getHolder() instanceof BountyInventoryView)) {
             return;
         }
         event.setCancelled(true);
-        guiManager.handleClick(player, event.getInventory(), event.getSlot());
+        if (event.getRawSlot() < 0 || event.getRawSlot() >= event.getView().getTopInventory().getSize()) {
+            return;
+        }
+        guiManager.handleClick(player, event.getView().getTopInventory(), event.getRawSlot());
     }
 
     @EventHandler
