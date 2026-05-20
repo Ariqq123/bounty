@@ -10,6 +10,7 @@ public record BountyContribution(
     UUID placerUuid,
     String placerName,
     long amount,
+    boolean adminFunded,
     ContributionStatus status,
     Instant createdAt,
     Instant updatedAt

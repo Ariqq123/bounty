@@ -45,11 +45,13 @@ public final class SqliteBountyRepository implements BountyRepository {
                     placer_uuid TEXT NOT NULL,
                     placer_name TEXT NOT NULL,
                     amount INTEGER NOT NULL,
+                    admin_funded INTEGER NOT NULL DEFAULT 0,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """);
+            ensureAdminFundedColumn(statement);
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS bounty_claims (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,9 +76,9 @@ public final class SqliteBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized void upsertActiveContribution(UUID targetUuid, String targetName, UUID placerUuid, String placerName, long amount)
+    public synchronized void upsertActiveContribution(UUID targetUuid, String targetName, UUID placerUuid, String placerName, long amount, boolean adminFunded)
         throws SQLException {
-        Optional<BountyContribution> existing = getActiveContribution(targetUuid, placerUuid);
+        Optional<BountyContribution> existing = getActiveContributionInternal(targetUuid, placerUuid, adminFunded);
         Instant now = Instant.now();
         if (existing.isPresent()) {
             try (PreparedStatement statement = connection.prepareStatement("""
@@ -96,31 +98,37 @@ public final class SqliteBountyRepository implements BountyRepository {
 
         try (PreparedStatement statement = connection.prepareStatement("""
             INSERT INTO bounty_contributions
-            (target_uuid, target_name, placer_uuid, placer_name, amount, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (target_uuid, target_name, placer_uuid, placer_name, amount, admin_funded, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """)) {
             statement.setString(1, targetUuid.toString());
             statement.setString(2, targetName);
             statement.setString(3, placerUuid.toString());
             statement.setString(4, placerName);
             statement.setLong(5, amount);
-            statement.setString(6, ContributionStatus.ACTIVE.name());
-            statement.setString(7, now.toString());
+            statement.setInt(6, adminFunded ? 1 : 0);
+            statement.setString(7, ContributionStatus.ACTIVE.name());
             statement.setString(8, now.toString());
+            statement.setString(9, now.toString());
             statement.executeUpdate();
         }
     }
 
     @Override
     public synchronized Optional<BountyContribution> getActiveContribution(UUID targetUuid, UUID placerUuid) throws SQLException {
+        return getActiveContributionInternal(targetUuid, placerUuid, false);
+    }
+
+    private Optional<BountyContribution> getActiveContributionInternal(UUID targetUuid, UUID placerUuid, boolean adminFunded) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
             SELECT * FROM bounty_contributions
-            WHERE target_uuid = ? AND placer_uuid = ? AND status = ?
+            WHERE target_uuid = ? AND placer_uuid = ? AND admin_funded = ? AND status = ?
             LIMIT 1
             """)) {
             statement.setString(1, targetUuid.toString());
             statement.setString(2, placerUuid.toString());
-            statement.setString(3, ContributionStatus.ACTIVE.name());
+            statement.setInt(3, adminFunded ? 1 : 0);
+            statement.setString(4, ContributionStatus.ACTIVE.name());
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next() ? Optional.of(mapContribution(resultSet)) : Optional.empty();
             }
@@ -146,7 +154,7 @@ public final class SqliteBountyRepository implements BountyRepository {
     public synchronized List<BountyContribution> getActiveContributionsByPlacer(UUID placerUuid) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
             SELECT * FROM bounty_contributions
-            WHERE placer_uuid = ? AND status = ?
+            WHERE placer_uuid = ? AND admin_funded = 0 AND status = ?
             ORDER BY updated_at DESC
             """)) {
             statement.setString(1, placerUuid.toString());
@@ -450,10 +458,21 @@ public final class SqliteBountyRepository implements BountyRepository {
             UUID.fromString(resultSet.getString("placer_uuid")),
             resultSet.getString("placer_name"),
             resultSet.getLong("amount"),
+            resultSet.getInt("admin_funded") != 0,
             ContributionStatus.valueOf(resultSet.getString("status")),
             Instant.parse(resultSet.getString("created_at")),
             Instant.parse(resultSet.getString("updated_at"))
         );
+    }
+
+    private void ensureAdminFundedColumn(Statement statement) throws SQLException {
+        try {
+            statement.executeUpdate("ALTER TABLE bounty_contributions ADD COLUMN admin_funded INTEGER NOT NULL DEFAULT 0");
+        } catch (SQLException exception) {
+            if (!exception.getMessage().toLowerCase(java.util.Locale.ROOT).contains("duplicate column name")) {
+                throw exception;
+            }
+        }
     }
 
     private List<BountyTargetSummary> mapTargetSummaries(ResultSet resultSet) throws SQLException {

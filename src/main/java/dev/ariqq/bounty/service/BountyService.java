@@ -71,7 +71,7 @@ public final class BountyService {
         }
 
         try {
-            repository.upsertActiveContribution(target.uuid(), target.name(), placerUuid, placerName, amount);
+            repository.upsertActiveContribution(target.uuid(), target.name(), placerUuid, placerName, amount, false);
             long total = repository.getActiveTotalForTarget(target.uuid());
             announcePlacement(placerName, target.name(), amount, total);
             notifier.notifyBountyPlaced(placerName, target.name(), amount, total, false);
@@ -95,7 +95,7 @@ public final class BountyService {
             return ServiceResult.failure("Admin bounty placer cannot be the same as the target.");
         }
         try {
-            repository.upsertActiveContribution(target.uuid(), target.name(), effectivePlacer.uuid(), effectivePlacer.name(), amount);
+            repository.upsertActiveContribution(target.uuid(), target.name(), effectivePlacer.uuid(), effectivePlacer.name(), amount, true);
             long total = repository.getActiveTotalForTarget(target.uuid());
             if (config().broadcastPlace()) {
                 Bukkit.broadcast(Component.text(
@@ -115,10 +115,18 @@ public final class BountyService {
         try {
             Optional<BountyContribution> contribution = repository.getActiveContribution(target.uuid(), placerUuid);
             if (contribution.isEmpty()) {
+                boolean hasAdminFundedAttribution = repository.getActiveContributionsByTarget(target.uuid()).stream()
+                    .anyMatch(active -> active.placerUuid().equals(placerUuid) && active.adminFunded());
+                if (hasAdminFundedAttribution) {
+                    return ServiceResult.failure("Admin-funded bounty contributions cannot be cancelled by players.");
+                }
                 return ServiceResult.failure("You do not have an active bounty on " + target.name() + ".");
             }
 
             BountyContribution active = contribution.get();
+            if (active.adminFunded()) {
+                return ServiceResult.failure("Admin-funded bounty contributions cannot be cancelled by players.");
+            }
             long refund = config().refundAmount(active.amount());
             if (!economy.deposit(placerUuid, placerName, refund)) {
                 logger.warning("Refund deposit failed for " + placerName + " on bounty " + active.id());
@@ -160,7 +168,9 @@ public final class BountyService {
         try {
             List<BountyContribution> contributions = placer == null
                 ? repository.getActiveContributionsByTarget(target.uuid())
-                : repository.getActiveContribution(target.uuid(), placer.uuid()).map(List::of).orElse(List.of());
+                : repository.getActiveContributionsByTarget(target.uuid()).stream()
+                    .filter(contribution -> contribution.placerUuid().equals(placer.uuid()))
+                    .toList();
 
             if (contributions.isEmpty()) {
                 return ServiceResult.failure("No active contribution matched that request.");
@@ -170,7 +180,7 @@ public final class BountyService {
             int closed = 0;
             int refundedContributions = 0;
             for (BountyContribution contribution : contributions) {
-                if (!CONSOLE_UUID.equals(contribution.placerUuid())) {
+                if (!contribution.adminFunded() && !CONSOLE_UUID.equals(contribution.placerUuid())) {
                     if (!economy.deposit(contribution.placerUuid(), contribution.placerName(), contribution.amount())) {
                         logger.warning("Refund deposit failed for " + contribution.placerName() + " on bounty " + contribution.id());
                         continue;

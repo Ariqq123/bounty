@@ -24,7 +24,8 @@ class SqliteBountyRepositoryTest {
                 "Target",
                 UUID.randomUUID(),
                 "Hunter",
-                250L
+                250L,
+                false
             );
             Assertions.assertEquals(1, repository.countActiveTargets());
         } finally {
@@ -41,8 +42,8 @@ class SqliteBountyRepositoryTest {
         Instant claimedAt = Instant.parse("2026-05-20T00:00:00Z");
 
         try (SqliteBountyRepository repository = new SqliteBountyRepository(tempDir.resolve("bounty.db"))) {
-            repository.upsertActiveContribution(targetUuid, "Target", placerOne, "HunterOne", 300L);
-            repository.upsertActiveContribution(targetUuid, "Target", placerTwo, "HunterTwo", 500L);
+            repository.upsertActiveContribution(targetUuid, "Target", placerOne, "HunterOne", 300L, false);
+            repository.upsertActiveContribution(targetUuid, "Target", placerTwo, "HunterTwo", 500L, false);
 
             List<Long> contributionIds = repository.getActiveContributionsByTarget(targetUuid).stream()
                 .map(contribution -> contribution.id())

@@ -62,6 +62,26 @@ class BountyServiceTest {
     }
 
     @Test
+    void cancelRejectsAdminFundedAttributedContribution() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID playerUuid = UUID.randomUUID();
+        UUID targetUuid = UUID.randomUUID();
+        KnownPlayer player = new KnownPlayer(playerUuid, "Hunter");
+        KnownPlayer target = new KnownPlayer(targetUuid, "Target");
+
+        ServiceResult added = service.adminAddBounty(target, 500L, player);
+        ServiceResult cancelled = service.cancelOwnBounty(playerUuid, "Hunter", target);
+
+        Assertions.assertTrue(added.success());
+        Assertions.assertFalse(cancelled.success());
+        Assertions.assertEquals("Admin-funded bounty contributions cannot be cancelled by players.", cancelled.message());
+        Assertions.assertEquals(0D, economy.balance(playerUuid));
+    }
+
+    @Test
     void cancelFailedRefundKeepsContributionActive() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
@@ -228,6 +248,20 @@ class BountyServiceTest {
         Assertions.assertTrue(refunded.success());
         Assertions.assertEquals("Closed 1 contribution(s). No player funds were refunded.", refunded.message());
         Assertions.assertEquals(0L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
+    void playerContributionsExcludeAdminFundedAttributions() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID playerUuid = UUID.randomUUID();
+        KnownPlayer player = new KnownPlayer(playerUuid, "Hunter");
+
+        service.adminAddBounty(new KnownPlayer(UUID.randomUUID(), "Target"), 500L, player);
+
+        Assertions.assertTrue(service.getPlayerContributions(playerUuid).isEmpty());
     }
 
     @Test
@@ -406,20 +440,25 @@ class BountyServiceTest {
         private long nextClaimId = 1;
 
         @Override
-        public void upsertActiveContribution(UUID targetUuid, String targetName, UUID placerUuid, String placerName, long amount) {
-            Optional<BountyContribution> current = getActiveContribution(targetUuid, placerUuid);
+        public void upsertActiveContribution(UUID targetUuid, String targetName, UUID placerUuid, String placerName, long amount, boolean adminFunded) {
+            Optional<BountyContribution> current = contributions.values().stream()
+                .filter(value -> value.targetUuid().equals(targetUuid))
+                .filter(value -> value.placerUuid().equals(placerUuid))
+                .filter(value -> value.adminFunded() == adminFunded)
+                .filter(value -> value.status() == ContributionStatus.ACTIVE)
+                .findFirst();
             Instant now = Instant.now();
             if (current.isPresent()) {
                 BountyContribution existing = current.get();
                 contributions.put(existing.id(), new BountyContribution(
                     existing.id(), targetUuid, targetName, placerUuid, placerName,
-                    existing.amount() + amount, ContributionStatus.ACTIVE, existing.createdAt(), now
+                    existing.amount() + amount, adminFunded, ContributionStatus.ACTIVE, existing.createdAt(), now
                 ));
                 return;
             }
             contributions.put(nextId, new BountyContribution(
                 nextId++, targetUuid, targetName, placerUuid, placerName, amount,
-                ContributionStatus.ACTIVE, now, now
+                adminFunded, ContributionStatus.ACTIVE, now, now
             ));
         }
 
@@ -428,6 +467,7 @@ class BountyServiceTest {
             return contributions.values().stream()
                 .filter(value -> value.targetUuid().equals(targetUuid))
                 .filter(value -> value.placerUuid().equals(placerUuid))
+                .filter(value -> !value.adminFunded())
                 .filter(value -> value.status() == ContributionStatus.ACTIVE)
                 .findFirst();
         }
@@ -445,6 +485,7 @@ class BountyServiceTest {
         public List<BountyContribution> getActiveContributionsByPlacer(UUID placerUuid) {
             return contributions.values().stream()
                 .filter(value -> value.placerUuid().equals(placerUuid))
+                .filter(value -> !value.adminFunded())
                 .filter(value -> value.status() == ContributionStatus.ACTIVE)
                 .toList();
         }
@@ -500,7 +541,7 @@ class BountyServiceTest {
             BountyContribution existing = contributions.get(id);
             contributions.put(id, new BountyContribution(
                 existing.id(), existing.targetUuid(), existing.targetName(), existing.placerUuid(), existing.placerName(),
-                existing.amount(), status, existing.createdAt(), Instant.now()
+                existing.amount(), existing.adminFunded(), status, existing.createdAt(), Instant.now()
             ));
         }
 
@@ -602,6 +643,13 @@ class BountyServiceTest {
 
         List<BountyContribution> getUnsafeByTarget(UUID targetUuid) {
             return getActiveContributionsByTarget(targetUuid);
+        }
+
+        List<BountyContribution> getUnsafeByPlacer(UUID placerUuid) {
+            return contributions.values().stream()
+                .filter(value -> value.placerUuid().equals(placerUuid))
+                .filter(value -> value.status() == ContributionStatus.ACTIVE)
+                .toList();
         }
     }
 }

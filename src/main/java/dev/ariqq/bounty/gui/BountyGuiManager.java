@@ -114,6 +114,9 @@ public final class BountyGuiManager {
             inventory.setItem(slot++, item(
                 Material.NAME_TAG,
                 contribution.targetName() + " - " + MoneyFormatter.format(contribution.amount()),
+                contribution.adminFunded()
+                    ? "This contribution is admin-funded and cannot be cancelled by players."
+                    :
                 hasCancelPermission(player)
                     ? "Click to cancel and refund " + bountyService.config().cancelRefundPercent() + " percent."
                     : "You do not have permission to cancel your bounty."

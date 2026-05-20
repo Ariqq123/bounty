@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface BountyRepository extends AutoCloseable {
-    void upsertActiveContribution(UUID targetUuid, String targetName, UUID placerUuid, String placerName, long amount) throws SQLException;
+    void upsertActiveContribution(UUID targetUuid, String targetName, UUID placerUuid, String placerName, long amount, boolean adminFunded) throws SQLException;
 
     Optional<BountyContribution> getActiveContribution(UUID targetUuid, UUID placerUuid) throws SQLException;
 
