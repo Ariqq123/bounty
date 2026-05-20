@@ -240,6 +240,9 @@ public final class BountyGuiManager {
 
         prompts.remove(player.getUniqueId());
         Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!player.isOnline() || !player.isValid()) {
+                return;
+            }
             ServiceResult result = bountyService.placeBounty(player.getUniqueId(), player.getName(), prompt.target(), amount);
             player.sendMessage(colored(result));
         });
