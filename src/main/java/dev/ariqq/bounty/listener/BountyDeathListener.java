@@ -1,6 +1,9 @@
 package dev.ariqq.bounty.listener;
 
+import dev.ariqq.bounty.service.ClaimResult;
 import dev.ariqq.bounty.service.BountyService;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -19,6 +22,13 @@ public final class BountyDeathListener implements Listener {
         if (killer == null) {
             return;
         }
-        bountyService.claimIfEligible(killer, event.getPlayer());
+        ClaimResult result = bountyService.claimIfEligible(killer, event.getPlayer());
+        if (result.success()) {
+            killer.sendMessage(Component.text(result.message(), NamedTextColor.GREEN));
+            return;
+        }
+        if (!"No bounty.".equals(result.message())) {
+            killer.sendMessage(Component.text(result.message(), NamedTextColor.RED));
+        }
     }
 }
