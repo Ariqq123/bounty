@@ -13,6 +13,7 @@ This project currently targets `Paper 1.21.x` and uses `Vault` plus a Vault-comp
 - Player GUI for browsing bounty targets, top bounties, personal contributions, and placing bounties
 - SQLite storage for active bounties, claim history, and anti-abuse cooldown tracking
 - Admin commands for adding, removing, refunding, and inspecting bounty history
+- Optional Discord webhook notifications for bounty activity
 
 ## Requirements
 
@@ -102,6 +103,17 @@ gui:
 messages:
   broadcast-place: true
   broadcast-claim: true
+
+discord:
+  enabled: false
+  webhook-url: ""
+  username: "Bounty"
+  avatar-url: ""
+  events:
+    place: true
+    claim: true
+    cancel: true
+    admin: true
 ```
 
 Notes:
@@ -109,6 +121,23 @@ Notes:
 - `max-amount: 0` means no upper limit.
 - `claim-cooldown-seconds-per-pair` is the cooldown for the same killer farming the same target repeatedly.
 - Bounty data is stored in an SQLite database file created in the plugin data folder.
+- Discord integration uses a standard Discord webhook URL and sends notifications asynchronously.
+
+## Discord Integration
+
+If you want bounty activity in a Discord channel:
+
+1. Create a webhook in your Discord server channel settings.
+2. Copy the webhook URL into `discord.webhook-url`.
+3. Set `discord.enabled: true`.
+4. Optionally customize `discord.username`, `discord.avatar-url`, and the enabled event toggles.
+
+Supported webhook events:
+
+- New player bounty placements
+- Bounty claims
+- Player bounty cancellations
+- Admin add/remove/refund actions
 
 ## GUI Flow
 
@@ -141,4 +170,4 @@ build/libs/Bounty-1.0.0.jar
 
 ## Current Scope
 
-This version focuses on single-server Paper deployment with local SQLite storage. It does not currently include cross-server sync, MySQL support, Discord integration, or alt-account detection.
+This version focuses on single-server Paper deployment with local SQLite storage. It does not currently include cross-server sync, MySQL support, Discord bot commands, or alt-account detection.

@@ -2,6 +2,7 @@ package dev.ariqq.bounty.service;
 
 import dev.ariqq.bounty.BountyPlugin;
 import dev.ariqq.bounty.config.BountyConfig;
+import dev.ariqq.bounty.discord.BountyNotifier;
 import dev.ariqq.bounty.model.BountyClaim;
 import dev.ariqq.bounty.model.BountyContribution;
 import dev.ariqq.bounty.model.BountyTargetSummary;
@@ -32,6 +33,7 @@ public final class BountyService {
     private final Logger logger;
     private final BountyRepository repository;
     private final EconomyAdapter economy;
+    private final BountyNotifier notifier;
     private final Supplier<BountyConfig> configSupplier;
 
     public BountyService(
@@ -39,11 +41,13 @@ public final class BountyService {
         Logger logger,
         BountyRepository repository,
         EconomyAdapter economy,
+        BountyNotifier notifier,
         Supplier<BountyConfig> configSupplier
     ) {
         this.logger = logger;
         this.repository = repository;
         this.economy = economy;
+        this.notifier = notifier;
         this.configSupplier = configSupplier;
     }
 
@@ -68,6 +72,7 @@ public final class BountyService {
             repository.upsertActiveContribution(target.uuid(), target.name(), placerUuid, placerName, amount);
             long total = repository.getActiveTotalForTarget(target.uuid());
             announcePlacement(placerName, target.name(), amount, total);
+            notifier.notifyBountyPlaced(placerName, target.name(), amount, total, false);
             return ServiceResult.success("Placed bounty of " + amount + " on " + target.name() + ". Total pool: " + total + ".");
         } catch (SQLException exception) {
             economy.deposit(placerUuid, placerName, amount);
@@ -90,6 +95,7 @@ public final class BountyService {
                     NamedTextColor.GOLD
                 ));
             }
+            notifier.notifyBountyPlaced(effectivePlacer.name(), target.name(), amount, total, true);
             return ServiceResult.success("Added admin bounty. Total pool: " + total + ".");
         } catch (SQLException exception) {
             logger.warning("Failed to add admin bounty: " + exception.getMessage());
@@ -117,6 +123,7 @@ public final class BountyService {
                 throw exception;
             }
 
+            notifier.notifyBountyCancelled(placerName, target.name(), refund);
             return ServiceResult.success("Cancelled your bounty on " + target.name() + ". Refunded " + refund + ".");
         } catch (SQLException exception) {
             logger.warning("Failed to cancel bounty: " + exception.getMessage());
@@ -130,6 +137,7 @@ public final class BountyService {
             if (rows == 0) {
                 return ServiceResult.failure("No active bounty found for " + target.name() + ".");
             }
+            notifier.notifyAdminTargetRemoved(target.name(), rows);
             return ServiceResult.success("Removed " + rows + " active contribution(s) from " + target.name() + ".");
         } catch (SQLException exception) {
             logger.warning("Failed to remove target bounty: " + exception.getMessage());
@@ -171,6 +179,7 @@ public final class BountyService {
             if (updated == 0) {
                 return ServiceResult.failure("No contribution could be refunded.");
             }
+            notifier.notifyAdminRefund(target.name(), refunded, updated);
             return ServiceResult.success("Refunded " + refunded + " across " + updated + " contribution(s).");
         } catch (SQLException exception) {
             logger.warning("Failed to refund bounty: " + exception.getMessage());
@@ -222,6 +231,7 @@ public final class BountyService {
                     NamedTextColor.GREEN
                 ));
             }
+            notifier.notifyBountyClaimed(killerName, targetName, total, contributions.size());
             return ClaimResult.success("Claimed bounty of " + total + ".", total, targetName);
         } catch (SQLException exception) {
             logger.warning("Failed to process bounty claim: " + exception.getMessage());

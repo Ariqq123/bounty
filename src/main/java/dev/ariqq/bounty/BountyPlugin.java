@@ -2,6 +2,8 @@ package dev.ariqq.bounty;
 
 import dev.ariqq.bounty.command.BountyCommand;
 import dev.ariqq.bounty.config.BountyConfig;
+import dev.ariqq.bounty.discord.BountyNotifier;
+import dev.ariqq.bounty.discord.DiscordWebhookNotifier;
 import dev.ariqq.bounty.gui.BountyGuiListener;
 import dev.ariqq.bounty.gui.BountyGuiManager;
 import dev.ariqq.bounty.listener.BountyChatListener;
@@ -50,7 +52,8 @@ public class BountyPlugin extends JavaPlugin {
 
         EconomyAdapter economyAdapter = new VaultEconomyAdapter(economy);
         Supplier<BountyConfig> configSupplier = this::getBountyConfig;
-        bountyService = new BountyService(this, getLogger(), repository, economyAdapter, configSupplier);
+        BountyNotifier bountyNotifier = new DiscordWebhookNotifier(configSupplier, getLogger());
+        bountyService = new BountyService(this, getLogger(), repository, economyAdapter, bountyNotifier, configSupplier);
         guiManager = new BountyGuiManager(this, bountyService);
 
         PluginCommand command = getCommand("bounty");

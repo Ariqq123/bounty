@@ -1,6 +1,7 @@
 package dev.ariqq.bounty.service;
 
 import dev.ariqq.bounty.config.BountyConfig;
+import dev.ariqq.bounty.discord.BountyNotifier;
 import dev.ariqq.bounty.model.BountyClaim;
 import dev.ariqq.bounty.model.BountyContribution;
 import dev.ariqq.bounty.model.BountyTargetSummary;
@@ -26,7 +27,8 @@ class BountyServiceTest {
     void placeMergesExistingContribution() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
-        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, BountyServiceTest::testConfig);
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
         UUID placer = UUID.randomUUID();
         UUID target = UUID.randomUUID();
 
@@ -38,13 +40,15 @@ class BountyServiceTest {
         Assertions.assertTrue(second.success());
         Assertions.assertEquals(750L, repository.getUnsafeTotal(target));
         Assertions.assertEquals(1, repository.getUnsafeByTarget(target).size());
+        Assertions.assertEquals(2, notifier.placedEvents);
     }
 
     @Test
     void cancelReturnsConfiguredRefund() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
-        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, BountyServiceTest::testConfig);
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
         UUID placer = UUID.randomUUID();
         UUID target = UUID.randomUUID();
 
@@ -54,13 +58,14 @@ class BountyServiceTest {
 
         Assertions.assertTrue(result.success());
         Assertions.assertEquals(4_800D, economy.balance(placer));
+        Assertions.assertEquals(1, notifier.cancelEvents);
     }
 
     @Test
     void cancelFailedRefundKeepsContributionActive() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
-        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, BountyServiceTest::testConfig);
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, new FakeNotifier(), BountyServiceTest::testConfig);
         UUID placer = UUID.randomUUID();
         UUID target = UUID.randomUUID();
 
@@ -80,7 +85,7 @@ class BountyServiceTest {
         InMemoryRepository repository = new InMemoryRepository();
         repository.failOnRecordClaim = true;
         FakeEconomy economy = new FakeEconomy();
-        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, BountyServiceTest::testConfig);
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, new FakeNotifier(), BountyServiceTest::testConfig);
         UUID placer = UUID.randomUUID();
         UUID killer = UUID.randomUUID();
         UUID target = UUID.randomUUID();
@@ -96,8 +101,57 @@ class BountyServiceTest {
         Assertions.assertEquals(1, repository.getUnsafeByTarget(target).size());
     }
 
+    @Test
+    void claimSendsDiscordNotificationOnSuccess() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID placer = UUID.randomUUID();
+        UUID killer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        economy.setBalance(placer, 5_000);
+        economy.setBalance(killer, 100);
+        service.placeBounty(placer, "Hunter", new KnownPlayer(target, "Target"), 1000);
+
+        ClaimResult result = service.claimIfEligible(killer, "Slayer", target, "Target");
+
+        Assertions.assertTrue(result.success());
+        Assertions.assertEquals(1, notifier.claimEvents);
+    }
+
     private static BountyConfig testConfig() {
-        return new BountyConfig(100, 0, 80, 3600, 28, false, false);
+        return new BountyConfig(100, 0, 80, 3600, 28, false, false, false, "", "Bounty", "", true, true, true, true);
+    }
+
+    private static final class FakeNotifier implements BountyNotifier {
+        private int placedEvents;
+        private int cancelEvents;
+        private int claimEvents;
+
+        @Override
+        public void notifyBountyPlaced(String placerName, String targetName, long amount, long totalPool, boolean adminAction) {
+            placedEvents++;
+        }
+
+        @Override
+        public void notifyBountyCancelled(String placerName, String targetName, long refundAmount) {
+            cancelEvents++;
+        }
+
+        @Override
+        public void notifyBountyClaimed(String killerName, String targetName, long totalAmount, int sourceCount) {
+            claimEvents++;
+        }
+
+        @Override
+        public void notifyAdminTargetRemoved(String targetName, int removedContributions) {
+        }
+
+        @Override
+        public void notifyAdminRefund(String targetName, long refundedAmount, int refundedContributions) {
+        }
     }
     private static final class FakeEconomy implements EconomyAdapter {
         private final Map<UUID, Double> balances = new HashMap<>();

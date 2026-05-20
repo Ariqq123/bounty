@@ -9,7 +9,15 @@ public record BountyConfig(
     long claimCooldownSecondsPerPair,
     int guiPageSize,
     boolean broadcastPlace,
-    boolean broadcastClaim
+    boolean broadcastClaim,
+    boolean discordEnabled,
+    String discordWebhookUrl,
+    String discordUsername,
+    String discordAvatarUrl,
+    boolean discordNotifyPlace,
+    boolean discordNotifyClaim,
+    boolean discordNotifyCancel,
+    boolean discordNotifyAdmin
 ) {
     public static BountyConfig fromConfig(FileConfiguration config) {
         return new BountyConfig(
@@ -19,7 +27,15 @@ public record BountyConfig(
             config.getLong("anti-abuse.claim-cooldown-seconds-per-pair", 3600L),
             Math.max(9, config.getInt("gui.page-size", 28)),
             config.getBoolean("messages.broadcast-place", true),
-            config.getBoolean("messages.broadcast-claim", true)
+            config.getBoolean("messages.broadcast-claim", true),
+            config.getBoolean("discord.enabled", false),
+            config.getString("discord.webhook-url", ""),
+            config.getString("discord.username", "Bounty"),
+            config.getString("discord.avatar-url", ""),
+            config.getBoolean("discord.events.place", true),
+            config.getBoolean("discord.events.claim", true),
+            config.getBoolean("discord.events.cancel", true),
+            config.getBoolean("discord.events.admin", true)
         );
     }
 

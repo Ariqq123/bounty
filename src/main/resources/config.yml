@@ -12,3 +12,14 @@ gui:
 messages:
   broadcast-place: true
   broadcast-claim: true
+
+discord:
+  enabled: false
+  webhook-url: ""
+  username: "Bounty"
+  avatar-url: ""
+  events:
+    place: true
+    claim: true
+    cancel: true
+    admin: true
