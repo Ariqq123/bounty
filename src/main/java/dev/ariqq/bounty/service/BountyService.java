@@ -284,8 +284,15 @@ public final class BountyService {
     }
 
     public List<BountyTargetSummary> listActiveTargets(int page, int pageSize) {
+        if (page <= 0 || pageSize <= 0) {
+            return Collections.emptyList();
+        }
         try {
-            int offset = Math.max(0, (page - 1) * pageSize);
+            long offsetLong = (long) (page - 1) * pageSize;
+            if (offsetLong > Integer.MAX_VALUE) {
+                return Collections.emptyList();
+            }
+            int offset = (int) offsetLong;
             return repository.listActiveTargetSummaries(pageSize, offset);
         } catch (SQLException exception) {
             logger.warning("Failed to list active targets: " + exception.getMessage());
@@ -303,6 +310,9 @@ public final class BountyService {
     }
 
     public List<BountyTargetSummary> topActiveTargets(int limit) {
+        if (limit <= 0) {
+            return Collections.emptyList();
+        }
         try {
             return repository.listTopTargetSummaries(limit);
         } catch (SQLException exception) {

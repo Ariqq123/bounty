@@ -9,10 +9,10 @@ import dev.ariqq.bounty.service.BountyService;
 import dev.ariqq.bounty.util.MoneyFormatter;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -28,7 +28,7 @@ public final class BountyGuiManager {
 
     private final BountyPlugin plugin;
     private final BountyService bountyService;
-    private final Map<UUID, PendingAmountPrompt> prompts = new HashMap<>();
+    private final Map<UUID, PendingAmountPrompt> prompts = new ConcurrentHashMap<>();
 
     public BountyGuiManager(BountyPlugin plugin, BountyService bountyService) {
         this.plugin = plugin;

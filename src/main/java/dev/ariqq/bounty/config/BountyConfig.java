@@ -26,12 +26,14 @@ public record BountyConfig(
     boolean discordNotifyAdmin
 ) {
     public static BountyConfig fromConfig(FileConfiguration config) {
+        int refundPercent = clamp(config.getInt("bounty.cancel-refund-percent", 80), 0, 100);
+        int guiPageSize = clamp(config.getInt("gui.page-size", 28), 9, 45);
         return new BountyConfig(
             config.getLong("bounty.min-amount", 100L),
             config.getLong("bounty.max-amount", 0L),
-            config.getInt("bounty.cancel-refund-percent", 80),
-            config.getLong("anti-abuse.claim-cooldown-seconds-per-pair", 3600L),
-            Math.max(9, config.getInt("gui.page-size", 28)),
+            refundPercent,
+            Math.max(0L, config.getLong("anti-abuse.claim-cooldown-seconds-per-pair", 3600L)),
+            guiPageSize,
             config.getBoolean("messages.broadcast-place", true),
             config.getBoolean("messages.broadcast-claim", true),
             config.getBoolean("discord.enabled", false),
@@ -53,6 +55,10 @@ public record BountyConfig(
 
     public long refundAmount(long originalAmount) {
         return Math.round(originalAmount * (cancelRefundPercent / 100.0D));
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private static int parseColor(String input, int fallback) {

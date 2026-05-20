@@ -182,6 +182,23 @@ class BountyServiceTest {
     }
 
     @Test
+    void listActiveTargetsReturnsEmptyWhenPageOffsetWouldOverflow() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID placer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        economy.setBalance(placer, 10_000);
+        service.placeBounty(placer, "Hunter", new KnownPlayer(target, "Target"), 250);
+
+        List<BountyTargetSummary> page = service.listActiveTargets(Integer.MAX_VALUE, 28);
+
+        Assertions.assertTrue(page.isEmpty());
+    }
+
+    @Test
     void discordTestNotificationCanBeTriggered() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
