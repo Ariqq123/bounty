@@ -287,6 +287,27 @@ class BountyServiceTest {
     }
 
     @Test
+    void targetSummaryUsesMostRecentlyUpdatedTargetName() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID targetUuid = UUID.randomUUID();
+        UUID placerOne = UUID.randomUUID();
+        UUID placerTwo = UUID.randomUUID();
+
+        economy.setBalance(placerOne, 10_000);
+        economy.setBalance(placerTwo, 10_000);
+        service.placeBounty(placerOne, "HunterOne", new KnownPlayer(targetUuid, "Zed"), 300L);
+        service.placeBounty(placerTwo, "HunterTwo", new KnownPlayer(targetUuid, "Aaron"), 400L);
+        service.placeBounty(placerOne, "HunterOne", new KnownPlayer(targetUuid, "Aaron"), 200L);
+
+        BountyTargetSummary summary = service.getTargetSummary(targetUuid).orElseThrow();
+        Assertions.assertEquals("Aaron", summary.targetName());
+        Assertions.assertEquals(900L, summary.totalAmount());
+    }
+
+    @Test
     void listActiveTargetsReturnsEmptyWhenPageOffsetWouldOverflow() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
@@ -545,12 +566,17 @@ class BountyServiceTest {
                 .filter(value -> value.status() == ContributionStatus.ACTIVE)
                 .collect(java.util.stream.Collectors.groupingBy(BountyContribution::targetUuid))
                 .values().stream()
-                .map(list -> new BountyTargetSummary(
-                    list.getFirst().targetUuid(),
-                    list.getFirst().targetName(),
-                    list.stream().mapToLong(BountyContribution::amount).sum(),
-                    (int) list.stream().map(BountyContribution::placerUuid).distinct().count()
-                ))
+                .map(list -> {
+                    List<BountyContribution> sorted = list.stream()
+                        .sorted(Comparator.comparing(BountyContribution::updatedAt).reversed())
+                        .toList();
+                    return new BountyTargetSummary(
+                        sorted.getFirst().targetUuid(),
+                        sorted.getFirst().targetName(),
+                        sorted.stream().mapToLong(BountyContribution::amount).sum(),
+                        (int) sorted.stream().map(BountyContribution::placerUuid).distinct().count()
+                    );
+                })
                 .sorted(Comparator.comparingLong(BountyTargetSummary::totalAmount).reversed())
                 .skip(offset)
                 .limit(limit)

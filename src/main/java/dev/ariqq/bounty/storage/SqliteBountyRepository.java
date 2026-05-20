@@ -183,13 +183,27 @@ public final class SqliteBountyRepository implements BountyRepository {
     @Override
     public synchronized Optional<BountyTargetSummary> getTargetSummary(UUID targetUuid) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
-            SELECT target_uuid, MAX(target_name) AS target_name, COALESCE(SUM(amount), 0) AS total, COUNT(DISTINCT placer_uuid) AS contributors
-            FROM bounty_contributions
-            WHERE target_uuid = ? AND status = ?
-            GROUP BY target_uuid
+            SELECT
+                summary.target_uuid,
+                (
+                    SELECT latest.target_name
+                    FROM bounty_contributions latest
+                    WHERE latest.target_uuid = summary.target_uuid AND latest.status = ?
+                    ORDER BY latest.updated_at DESC, latest.id DESC
+                    LIMIT 1
+                ) AS target_name,
+                summary.total,
+                summary.contributors
+            FROM (
+                SELECT target_uuid, COALESCE(SUM(amount), 0) AS total, COUNT(DISTINCT placer_uuid) AS contributors
+                FROM bounty_contributions
+                WHERE target_uuid = ? AND status = ?
+                GROUP BY target_uuid
+            ) summary
             """)) {
-            statement.setString(1, targetUuid.toString());
-            statement.setString(2, ContributionStatus.ACTIVE.name());
+            statement.setString(1, ContributionStatus.ACTIVE.name());
+            statement.setString(2, targetUuid.toString());
+            statement.setString(3, ContributionStatus.ACTIVE.name());
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next() ? Optional.of(mapTargetSummary(resultSet)) : Optional.empty();
             }
@@ -217,16 +231,30 @@ public final class SqliteBountyRepository implements BountyRepository {
     @Override
     public synchronized List<BountyTargetSummary> listActiveTargetSummaries(int limit, int offset) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
-            SELECT target_uuid, MAX(target_name) AS target_name, COALESCE(SUM(amount), 0) AS total, COUNT(DISTINCT placer_uuid) AS contributors
-            FROM bounty_contributions
-            WHERE status = ?
-            GROUP BY target_uuid
-            ORDER BY total DESC, target_name ASC
+            SELECT
+                summary.target_uuid,
+                (
+                    SELECT latest.target_name
+                    FROM bounty_contributions latest
+                    WHERE latest.target_uuid = summary.target_uuid AND latest.status = ?
+                    ORDER BY latest.updated_at DESC, latest.id DESC
+                    LIMIT 1
+                ) AS target_name,
+                summary.total,
+                summary.contributors
+            FROM (
+                SELECT target_uuid, COALESCE(SUM(amount), 0) AS total, COUNT(DISTINCT placer_uuid) AS contributors
+                FROM bounty_contributions
+                WHERE status = ?
+                GROUP BY target_uuid
+            ) summary
+            ORDER BY summary.total DESC, target_name ASC
             LIMIT ? OFFSET ?
             """)) {
             statement.setString(1, ContributionStatus.ACTIVE.name());
-            statement.setInt(2, limit);
-            statement.setInt(3, offset);
+            statement.setString(2, ContributionStatus.ACTIVE.name());
+            statement.setInt(3, limit);
+            statement.setInt(4, offset);
             try (ResultSet resultSet = statement.executeQuery()) {
                 return mapTargetSummaries(resultSet);
             }
