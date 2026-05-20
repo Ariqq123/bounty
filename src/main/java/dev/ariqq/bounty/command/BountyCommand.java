@@ -8,6 +8,7 @@ import dev.ariqq.bounty.model.BountyTargetSummary;
 import dev.ariqq.bounty.model.KnownPlayer;
 import dev.ariqq.bounty.model.ServiceResult;
 import dev.ariqq.bounty.service.BountyService;
+import dev.ariqq.bounty.util.MoneyFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -122,7 +123,10 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             if (parsed.isEmpty()) {
                 return true;
             }
-            page = (int) parsed.getAsLong();
+            page = safeInt(parsed.getAsLong(), sender, "Page");
+            if (page <= 0) {
+                return true;
+            }
         }
         List<BountyTargetSummary> summaries = bountyService.listActiveTargets(page, bountyService.config().guiPageSize());
         sender.sendMessage(Component.text("Active bounties page " + page, NamedTextColor.GOLD));
@@ -143,7 +147,10 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             if (parsed.isEmpty()) {
                 return true;
             }
-            limit = (int) parsed.getAsLong();
+            limit = safeInt(parsed.getAsLong(), sender, "Limit");
+            if (limit <= 0) {
+                return true;
+            }
         }
         List<BountyTargetSummary> summaries = bountyService.topActiveTargets(limit);
         sender.sendMessage(Component.text("Top bounties", NamedTextColor.GOLD));
@@ -170,7 +177,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         for (BountyContribution contribution : contributions) {
-            sender.sendMessage(Component.text("- " + contribution.targetName() + ": " + contribution.amount(), NamedTextColor.YELLOW));
+            sender.sendMessage(Component.text("- " + contribution.targetName() + ": " + MoneyFormatter.format(contribution.amount()), NamedTextColor.YELLOW));
         }
         return true;
     }
@@ -234,7 +241,14 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         if (amount.isEmpty()) {
             return true;
         }
-        Optional<KnownPlayer> placer = args.length >= 5 ? bountyService.resolveKnownPlayer(args[4]) : Optional.empty();
+        Optional<KnownPlayer> placer = Optional.empty();
+        if (args.length >= 5) {
+            placer = bountyService.resolveKnownPlayer(args[4]);
+            if (placer.isEmpty()) {
+                sender.sendMessage(Component.text("Unknown player: " + args[4], NamedTextColor.RED));
+                return true;
+            }
+        }
         ServiceResult result = bountyService.adminAddBounty(target.get(), amount.getAsLong(), placer.orElse(null));
         sender.sendMessage(Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED));
         return true;
@@ -265,7 +279,14 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Component.text("Unknown player: " + args[2], NamedTextColor.RED));
             return true;
         }
-        Optional<KnownPlayer> placer = args.length >= 4 ? bountyService.resolveKnownPlayer(args[3]) : Optional.empty();
+        Optional<KnownPlayer> placer = Optional.empty();
+        if (args.length >= 4) {
+            placer = bountyService.resolveKnownPlayer(args[3]);
+            if (placer.isEmpty()) {
+                sender.sendMessage(Component.text("Unknown player: " + args[3], NamedTextColor.RED));
+                return true;
+            }
+        }
         ServiceResult result = bountyService.adminRefundTarget(target.get(), placer.orElse(null));
         sender.sendMessage(Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED));
         return true;
@@ -346,6 +367,14 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             return OptionalLong.empty();
         }
         return OptionalLong.of(value);
+    }
+
+    private int safeInt(long value, CommandSender sender, String label) {
+        if (value > Integer.MAX_VALUE) {
+            sender.sendMessage(Component.text(label + " is too large.", NamedTextColor.RED));
+            return -1;
+        }
+        return (int) value;
     }
 
     private List<String> filter(List<String> values, String prefix) {
