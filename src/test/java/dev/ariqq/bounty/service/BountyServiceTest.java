@@ -102,6 +102,24 @@ class BountyServiceTest {
     }
 
     @Test
+    void cancelRejectsUnsafeStoredContributionAmount() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, new FakeNotifier(), BountyServiceTest::testConfig);
+        UUID placer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        repository.upsertActiveContribution(target, "Target", placer, "Hunter", BountyConfig.MAX_SAFE_ECONOMY_AMOUNT + 1L, false);
+
+        ServiceResult result = service.cancelOwnBounty(placer, "Hunter", new KnownPlayer(target, "Target"));
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals("This bounty amount is not supported by the economy and cannot be refunded safely.", result.message());
+        Assertions.assertEquals(0D, economy.balance(placer));
+        Assertions.assertEquals(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT + 1L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
     void cancelStatusMismatchRollsBackRefund() {
         InMemoryRepository repository = new InMemoryRepository();
         repository.failNextTransition = true;
@@ -160,6 +178,46 @@ class BountyServiceTest {
         Assertions.assertFalse(result.success());
         Assertions.assertEquals(100D, economy.balance(killer));
         Assertions.assertEquals(1, repository.getUnsafeByTarget(target).size());
+    }
+
+    @Test
+    void claimRejectsUnsafeStoredContributionAmount() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, new FakeNotifier(), BountyServiceTest::testConfig);
+        UUID killer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+        UUID placer = UUID.randomUUID();
+
+        economy.setBalance(killer, 100D);
+        repository.upsertActiveContribution(target, "Target", placer, "Hunter", BountyConfig.MAX_SAFE_ECONOMY_AMOUNT + 1L, false);
+
+        ClaimResult result = service.claimIfEligible(killer, "Slayer", target, "Target");
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals("This bounty amount is not supported by the economy and cannot be claimed safely.", result.message());
+        Assertions.assertEquals(100D, economy.balance(killer));
+        Assertions.assertEquals(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT + 1L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
+    void claimRejectsStoredPoolsAboveSafeEconomyPrecision() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, new FakeNotifier(), BountyServiceTest::testConfig);
+        UUID killer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        economy.setBalance(killer, 100D);
+        repository.upsertActiveContribution(target, "Target", UUID.randomUUID(), "HunterOne", BountyConfig.MAX_SAFE_ECONOMY_AMOUNT, false);
+        repository.upsertActiveContribution(target, "Target", UUID.randomUUID(), "HunterTwo", 1L, false);
+
+        ClaimResult result = service.claimIfEligible(killer, "Slayer", target, "Target");
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals("This bounty reward exceeds the maximum supported economy amount.", result.message());
+        Assertions.assertEquals(100D, economy.balance(killer));
+        Assertions.assertEquals(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT + 1L, repository.getUnsafeTotal(target));
     }
 
     @Test
@@ -449,6 +507,24 @@ class BountyServiceTest {
             refunded.message()
         );
         Assertions.assertEquals(300L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
+    void adminRefundRejectsUnsafeStoredContributionAmount() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, new FakeNotifier(), BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+        UUID placer = UUID.randomUUID();
+
+        repository.upsertActiveContribution(target, "Target", placer, "Hunter", BountyConfig.MAX_SAFE_ECONOMY_AMOUNT + 1L, false);
+
+        ServiceResult refunded = service.adminRefundTarget(new KnownPlayer(target, "Target"), null);
+
+        Assertions.assertFalse(refunded.success());
+        Assertions.assertEquals("No contribution could be processed. 1 contribution(s) remain active.", refunded.message());
+        Assertions.assertEquals(0D, economy.balance(placer));
+        Assertions.assertEquals(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT + 1L, repository.getUnsafeTotal(target));
     }
 
     @Test

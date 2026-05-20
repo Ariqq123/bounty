@@ -142,7 +142,15 @@ public final class BountyService {
             if (active.adminFunded()) {
                 return ServiceResult.failure("Admin-funded bounty contributions cannot be cancelled by players.");
             }
+            if (!isSafeEconomyAmount(active.amount())) {
+                logger.warning("Unsupported bounty amount on contribution " + active.id() + ": " + active.amount());
+                return ServiceResult.failure("This bounty amount is not supported by the economy and cannot be refunded safely.");
+            }
             long refund = config().refundAmount(active.amount());
+            if (!isSafeEconomyAmount(refund)) {
+                logger.warning("Unsupported refund amount on contribution " + active.id() + ": " + refund);
+                return ServiceResult.failure("This bounty amount is not supported by the economy and cannot be refunded safely.");
+            }
             if (!economy.deposit(placerUuid, placerName, refund)) {
                 logger.warning("Refund deposit failed for " + placerName + " on bounty " + active.id());
                 return ServiceResult.failure("Failed to refund your cancelled bounty.");
@@ -226,6 +234,11 @@ public final class BountyService {
             List<Long> closableContributionIds = new ArrayList<>();
             for (BountyContribution contribution : contributions) {
                 if (!contribution.adminFunded() && !CONSOLE_UUID.equals(contribution.placerUuid())) {
+                    if (!isSafeEconomyAmount(contribution.amount())) {
+                        logger.warning("Unsupported refund amount on contribution " + contribution.id() + ": " + contribution.amount());
+                        failed++;
+                        continue;
+                    }
                     if (!economy.deposit(contribution.placerUuid(), contribution.placerName(), contribution.amount())) {
                         logger.warning("Refund deposit failed for " + contribution.placerName() + " on bounty " + contribution.id());
                         failed++;
@@ -308,7 +321,21 @@ public final class BountyService {
                 return ClaimResult.failure("This killer-target pair is still on cooldown.");
             }
 
-            long total = contributions.stream().mapToLong(BountyContribution::amount).sum();
+            long total = 0L;
+            for (BountyContribution contribution : contributions) {
+                if (!isSafeEconomyAmount(contribution.amount())) {
+                    logger.warning("Unsupported claim amount on contribution " + contribution.id() + ": " + contribution.amount());
+                    return ClaimResult.failure("This bounty amount is not supported by the economy and cannot be claimed safely.");
+                }
+                try {
+                    total = Math.addExact(total, contribution.amount());
+                } catch (ArithmeticException exception) {
+                    return ClaimResult.failure("This bounty reward exceeds the maximum supported economy amount.");
+                }
+            }
+            if (!isSafeEconomyAmount(total)) {
+                return ClaimResult.failure("This bounty reward exceeds the maximum supported economy amount.");
+            }
             if (!economy.deposit(killerUuid, killerName, total)) {
                 return ClaimResult.failure("Failed to pay out bounty reward.");
             }
@@ -542,6 +569,9 @@ public final class BountyService {
     private ServiceResult ensurePoolCanAccept(KnownPlayer target, long amount) {
         try {
             long currentTotal = repository.getActiveTotalForTarget(target.uuid());
+            if (!isSafeEconomyAmount(currentTotal)) {
+                return ServiceResult.failure("Current bounty pool is not supported by the economy.");
+            }
             long newTotal = Math.addExact(currentTotal, amount);
             if (newTotal > BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) {
                 return ServiceResult.failure("Maximum supported total bounty pool is " + MoneyFormatter.format(BountyConfig.MAX_SAFE_ECONOMY_AMOUNT) + ".");
@@ -562,5 +592,9 @@ public final class BountyService {
         return ServiceResult.success(
             baseMessage + " " + failedContributions + " contribution(s) could not be processed and remain active."
         );
+    }
+
+    private boolean isSafeEconomyAmount(long amount) {
+        return amount >= 0L && amount <= BountyConfig.MAX_SAFE_ECONOMY_AMOUNT;
     }
 }
