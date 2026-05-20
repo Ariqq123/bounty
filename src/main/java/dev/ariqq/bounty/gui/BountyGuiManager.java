@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
@@ -76,7 +75,7 @@ public final class BountyGuiManager {
             inventory.setItem(slot++, item(
                 Material.NAME_TAG,
                 contribution.targetName() + " - " + contribution.amount(),
-                "Click to cancel and refund 80 percent."
+                "Click to cancel and refund " + bountyService.config().cancelRefundPercent() + " percent."
             ));
         }
         inventory.setItem(49, item(Material.BARRIER, "Back", "Return to the main menu."));
@@ -87,7 +86,9 @@ public final class BountyGuiManager {
         BountyInventoryView holder = new BountyInventoryView(ViewType.TARGET_SELECT, page);
         Inventory inventory = Bukkit.createInventory(holder, 54, Component.text("Choose Target"));
         holder.setInventory(inventory);
-        List<KnownPlayer> knownPlayers = bountyService.listKnownPlayers();
+        List<KnownPlayer> knownPlayers = bountyService.listKnownPlayers().stream()
+            .filter(knownPlayer -> !knownPlayer.uuid().equals(player.getUniqueId()))
+            .toList();
         int start = Math.max(0, (page - 1) * 45);
         int slot = 0;
         for (KnownPlayer knownPlayer : knownPlayers.stream().skip(start).limit(45).toList()) {
@@ -185,6 +186,10 @@ public final class BountyGuiManager {
             player.sendMessage(colored(result));
         });
         return true;
+    }
+
+    public void clearPrompt(UUID playerUuid) {
+        prompts.remove(playerUuid);
     }
 
     private void handleMainClick(Player player, String title) {

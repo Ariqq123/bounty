@@ -14,7 +14,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -30,7 +29,6 @@ public final class BountyService {
     private static final UUID CONSOLE_UUID = UUID.fromString("00000000-0000-0000-0000-000000000000");
     private static final String CONSOLE_NAME = "CONSOLE";
 
-    private final BountyPlugin plugin;
     private final Logger logger;
     private final BountyRepository repository;
     private final EconomyAdapter economy;
@@ -43,7 +41,6 @@ public final class BountyService {
         EconomyAdapter economy,
         Supplier<BountyConfig> configSupplier
     ) {
-        this.plugin = plugin;
         this.logger = logger;
         this.repository = repository;
         this.economy = economy;
@@ -108,11 +105,16 @@ public final class BountyService {
             }
 
             BountyContribution active = contribution.get();
-            repository.updateContributionStatus(active.id(), ContributionStatus.CANCELLED);
             long refund = config().refundAmount(active.amount());
             if (!economy.deposit(placerUuid, placerName, refund)) {
-                logger.warning("Refund failed for " + placerName + " on cancelled bounty " + active.id());
-                return ServiceResult.failure("Contribution was cancelled but refund deposit failed.");
+                logger.warning("Refund deposit failed for " + placerName + " on bounty " + active.id());
+                return ServiceResult.failure("Failed to refund your cancelled bounty.");
+            }
+            try {
+                repository.updateContributionStatus(active.id(), ContributionStatus.CANCELLED);
+            } catch (SQLException exception) {
+                compensateDeposit(placerUuid, placerName, refund, "cancelled bounty rollback");
+                throw exception;
             }
 
             return ServiceResult.success("Cancelled your bounty on " + target.name() + ". Refunded " + refund + ".");
@@ -146,14 +148,30 @@ public final class BountyService {
             }
 
             long refunded = 0L;
+            int updated = 0;
             for (BountyContribution contribution : contributions) {
-                repository.updateContributionStatus(contribution.id(), ContributionStatus.REFUNDED);
-                if (!CONSOLE_UUID.equals(contribution.placerUuid()) &&
-                    economy.deposit(contribution.placerUuid(), contribution.placerName(), contribution.amount())) {
-                    refunded += contribution.amount();
+                if (!CONSOLE_UUID.equals(contribution.placerUuid())) {
+                    if (!economy.deposit(contribution.placerUuid(), contribution.placerName(), contribution.amount())) {
+                        logger.warning("Refund deposit failed for " + contribution.placerName() + " on bounty " + contribution.id());
+                        continue;
+                    }
+                    try {
+                        repository.updateContributionStatus(contribution.id(), ContributionStatus.REFUNDED);
+                        refunded += contribution.amount();
+                        updated++;
+                    } catch (SQLException exception) {
+                        compensateDeposit(contribution.placerUuid(), contribution.placerName(), contribution.amount(), "admin refund rollback");
+                        throw exception;
+                    }
+                } else {
+                    repository.updateContributionStatus(contribution.id(), ContributionStatus.REFUNDED);
+                    updated++;
                 }
             }
-            return ServiceResult.success("Refunded " + refunded + " across " + contributions.size() + " contribution(s).");
+            if (updated == 0) {
+                return ServiceResult.failure("No contribution could be refunded.");
+            }
+            return ServiceResult.success("Refunded " + refunded + " across " + updated + " contribution(s).");
         } catch (SQLException exception) {
             logger.warning("Failed to refund bounty: " + exception.getMessage());
             return ServiceResult.failure("Failed to refund bounty.");
@@ -164,35 +182,47 @@ public final class BountyService {
         if (killer == null || target == null) {
             return ClaimResult.failure("No valid killer.");
         }
-        if (killer.getUniqueId().equals(target.getUniqueId())) {
+        return claimIfEligible(killer.getUniqueId(), killer.getName(), target.getUniqueId(), target.getName());
+    }
+
+    ClaimResult claimIfEligible(UUID killerUuid, String killerName, UUID targetUuid, String targetName) {
+        if (killerUuid.equals(targetUuid)) {
             return ClaimResult.failure("Self-kill is not eligible.");
         }
 
         try {
-            List<BountyContribution> contributions = repository.getActiveContributionsByTarget(target.getUniqueId());
+            List<BountyContribution> contributions = repository.getActiveContributionsByTarget(targetUuid);
             if (contributions.isEmpty()) {
                 return ClaimResult.failure("No bounty.");
             }
-            if (isOnCooldown(killer.getUniqueId(), target.getUniqueId())) {
+            if (isOnCooldown(killerUuid, targetUuid)) {
                 return ClaimResult.failure("This killer-target pair is still on cooldown.");
             }
 
             long total = contributions.stream().mapToLong(BountyContribution::amount).sum();
-            if (!economy.deposit(killer.getUniqueId(), killer.getName(), total)) {
+            if (!economy.deposit(killerUuid, killerName, total)) {
                 return ClaimResult.failure("Failed to pay out bounty reward.");
             }
 
-            repository.recordClaim(target.getUniqueId(), target.getName(), killer.getUniqueId(), killer.getName(), total, contributions.size());
-            repository.updateTargetContributionsStatus(target.getUniqueId(), ContributionStatus.CLAIMED);
-            repository.upsertAbuseLock(killer.getUniqueId(), target.getUniqueId(), Instant.now());
+            try {
+                repository.recordClaim(targetUuid, targetName, killerUuid, killerName, total, contributions.size());
+                int claimed = repository.updateTargetContributionsStatus(targetUuid, ContributionStatus.CLAIMED);
+                if (claimed <= 0) {
+                    throw new SQLException("No active contributions were marked claimed.");
+                }
+                repository.upsertAbuseLock(killerUuid, targetUuid, Instant.now());
+            } catch (SQLException exception) {
+                compensateDeposit(killerUuid, killerName, total, "claim rollback");
+                throw exception;
+            }
 
-            if (config().broadcastClaim()) {
+            if (config().broadcastClaim() && Bukkit.getServer() != null) {
                 Bukkit.broadcast(Component.text(
-                    killer.getName() + " claimed bounty of " + total + " by killing " + target.getName() + ".",
+                    killerName + " claimed bounty of " + total + " by killing " + targetName + ".",
                     NamedTextColor.GREEN
                 ));
             }
-            return ClaimResult.success("Claimed bounty of " + total + ".", total, target.getName());
+            return ClaimResult.success("Claimed bounty of " + total + ".", total, targetName);
         } catch (SQLException exception) {
             logger.warning("Failed to process bounty claim: " + exception.getMessage());
             return ClaimResult.failure("Failed to process bounty claim.");
@@ -200,6 +230,13 @@ public final class BountyService {
     }
 
     public Optional<KnownPlayer> resolveKnownPlayer(String input) {
+        if (input == null) {
+            return Optional.empty();
+        }
+        input = input.trim();
+        if (input.isEmpty()) {
+            return Optional.empty();
+        }
         Player online = Bukkit.getPlayerExact(input);
         if (online != null) {
             return Optional.of(new KnownPlayer(online.getUniqueId(), online.getName()));
@@ -322,5 +359,11 @@ public final class BountyService {
             return false;
         }
         return lastClaim.get().plusSeconds(config().claimCooldownSecondsPerPair()).isAfter(Instant.now());
+    }
+
+    private void compensateDeposit(UUID playerUuid, String playerName, long amount, String context) {
+        if (!economy.withdraw(playerUuid, playerName, amount)) {
+            logger.severe("Failed to compensate " + context + " for " + playerName + " amount=" + amount + ".");
+        }
     }
 }

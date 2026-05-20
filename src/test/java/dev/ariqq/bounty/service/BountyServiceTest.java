@@ -56,14 +56,59 @@ class BountyServiceTest {
         Assertions.assertEquals(4_800D, economy.balance(placer));
     }
 
+    @Test
+    void cancelFailedRefundKeepsContributionActive() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, BountyServiceTest::testConfig);
+        UUID placer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        economy.setBalance(placer, 5_000);
+        economy.failNextDepositFor(placer);
+        service.placeBounty(placer, "Hunter", new KnownPlayer(target, "Target"), 1000);
+
+        ServiceResult result = service.cancelOwnBounty(placer, "Hunter", new KnownPlayer(target, "Target"));
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals(1, repository.getUnsafeByTarget(target).size());
+        Assertions.assertEquals(4_000D, economy.balance(placer));
+    }
+
+    @Test
+    void claimDatabaseFailureCompensatesPaidReward() {
+        InMemoryRepository repository = new InMemoryRepository();
+        repository.failOnRecordClaim = true;
+        FakeEconomy economy = new FakeEconomy();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, BountyServiceTest::testConfig);
+        UUID placer = UUID.randomUUID();
+        UUID killer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        economy.setBalance(placer, 5_000);
+        economy.setBalance(killer, 100);
+        service.placeBounty(placer, "Hunter", new KnownPlayer(target, "Target"), 1000);
+
+        ClaimResult result = service.claimIfEligible(killer, "Slayer", target, "Target");
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals(100D, economy.balance(killer));
+        Assertions.assertEquals(1, repository.getUnsafeByTarget(target).size());
+    }
+
     private static BountyConfig testConfig() {
         return new BountyConfig(100, 0, 80, 3600, 28, false, false);
     }
     private static final class FakeEconomy implements EconomyAdapter {
         private final Map<UUID, Double> balances = new HashMap<>();
+        private final Map<UUID, Integer> failingDeposits = new HashMap<>();
 
         void setBalance(UUID uuid, double amount) {
             balances.put(uuid, amount);
+        }
+
+        void failNextDepositFor(UUID uuid) {
+            failingDeposits.put(uuid, failingDeposits.getOrDefault(uuid, 0) + 1);
         }
 
         double balance(UUID uuid) {
@@ -86,6 +131,11 @@ class BountyServiceTest {
 
         @Override
         public boolean deposit(UUID playerId, String playerName, double amount) {
+            int remainingFailures = failingDeposits.getOrDefault(playerId, 0);
+            if (remainingFailures > 0) {
+                failingDeposits.put(playerId, remainingFailures - 1);
+                return false;
+            }
             balances.put(playerId, balance(playerId) + amount);
             return true;
         }
@@ -95,6 +145,7 @@ class BountyServiceTest {
         private final Map<Long, BountyContribution> contributions = new HashMap<>();
         private final Map<String, Instant> abuseLocks = new HashMap<>();
         private final List<BountyClaim> claims = new ArrayList<>();
+        private boolean failOnRecordClaim;
         private long nextId = 1;
         private long nextClaimId = 1;
 
@@ -201,7 +252,11 @@ class BountyServiceTest {
         }
 
         @Override
-        public void recordClaim(UUID targetUuid, String targetName, UUID killerUuid, String killerName, long totalAmount, int sourceCount) {
+        public void recordClaim(UUID targetUuid, String targetName, UUID killerUuid, String killerName, long totalAmount, int sourceCount)
+            throws SQLException {
+            if (failOnRecordClaim) {
+                throw new SQLException("forced record claim failure");
+            }
             claims.add(new BountyClaim(nextClaimId++, targetUuid, targetName, killerUuid, killerName, totalAmount, sourceCount, Instant.now()));
         }
 
