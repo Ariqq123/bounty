@@ -176,7 +176,7 @@ Build with Gradle:
 The compiled jar will be created in:
 
 ```text
-build/libs/Bounty-1.0.0.jar
+build/libs/Bounty-1.1.0.jar
 ```
 
 ## Project Layout
