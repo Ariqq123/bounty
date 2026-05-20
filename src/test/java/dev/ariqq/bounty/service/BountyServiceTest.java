@@ -251,6 +251,45 @@ class BountyServiceTest {
     }
 
     @Test
+    void adminRemoveRejectsActivePlayerFundedContributions() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+        UUID placer = UUID.randomUUID();
+
+        economy.setBalance(placer, 5_000);
+        service.placeBounty(placer, "Hunter", new KnownPlayer(target, "Target"), 500L);
+
+        ServiceResult removed = service.adminRemoveTarget(new KnownPlayer(target, "Target"));
+
+        Assertions.assertFalse(removed.success());
+        Assertions.assertEquals(
+            "Cannot remove active player-funded contributions from Target. Use /bounty admin refund Target instead.",
+            removed.message()
+        );
+        Assertions.assertEquals(500L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
+    void adminRemoveAllowsAdminFundedOnlyContributions() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+
+        ServiceResult added = service.adminAddBounty(new KnownPlayer(target, "Target"), 500L, null);
+        ServiceResult removed = service.adminRemoveTarget(new KnownPlayer(target, "Target"));
+
+        Assertions.assertTrue(added.success());
+        Assertions.assertTrue(removed.success());
+        Assertions.assertEquals("Removed 1 non-refundable contribution(s) from Target.", removed.message());
+        Assertions.assertEquals(0L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
     void adminRefundReportsPartialFailuresAndLeavesUnprocessedContributionActive() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();

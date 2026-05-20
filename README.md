@@ -67,7 +67,7 @@ This project currently targets `Paper 1.21.x` and uses `Vault` plus a Vault-comp
 - `/bounty admin add <player> <amount> [placer]`
   Add a bounty contribution without withdrawing player money.
 - `/bounty admin remove <player>`
-  Remove all active contributions for a target.
+  Remove only non-refundable contributions for a target. If player-funded money is still active, use `/bounty admin refund`.
 - `/bounty admin refund <player> [placer]`
   Refund active contributions back to their original placers.
 - `/bounty admin history <player>`

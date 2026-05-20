@@ -152,12 +152,30 @@ public final class BountyService {
 
     public ServiceResult adminRemoveTarget(KnownPlayer target) {
         try {
-            int rows = repository.updateTargetContributionsStatus(target.uuid(), ContributionStatus.REMOVED);
-            if (rows == 0) {
+            List<BountyContribution> contributions = repository.getActiveContributionsByTarget(target.uuid());
+            if (contributions.isEmpty()) {
                 return ServiceResult.failure("No active bounty found for " + target.name() + ".");
             }
-            notifier.notifyAdminTargetRemoved(target.name(), rows);
-            return ServiceResult.success("Removed " + rows + " active contribution(s) from " + target.name() + ".");
+
+            boolean hasRefundablePlayerContribution = contributions.stream()
+                .anyMatch(contribution -> !contribution.adminFunded() && !CONSOLE_UUID.equals(contribution.placerUuid()));
+            if (hasRefundablePlayerContribution) {
+                return ServiceResult.failure(
+                    "Cannot remove active player-funded contributions from " + target.name() + ". Use /bounty admin refund " + target.name() + " instead."
+                );
+            }
+
+            int removed = 0;
+            for (BountyContribution contribution : contributions) {
+                if (repository.transitionContributionStatus(contribution.id(), ContributionStatus.ACTIVE, ContributionStatus.REMOVED)) {
+                    removed++;
+                }
+            }
+            if (removed == 0) {
+                return ServiceResult.failure("No active bounty could be removed for " + target.name() + ".");
+            }
+            notifier.notifyAdminTargetRemoved(target.name(), removed);
+            return ServiceResult.success("Removed " + removed + " non-refundable contribution(s) from " + target.name() + ".");
         } catch (SQLException exception) {
             logger.warning("Failed to remove target bounty: " + exception.getMessage());
             return ServiceResult.failure("Failed to remove target bounty.");
