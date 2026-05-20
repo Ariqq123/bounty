@@ -66,11 +66,37 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (!sender.hasPermission("bounty.use")) {
+            return List.of();
+        }
         if (args.length == 1) {
-            return filter(List.of("place", "info", "list", "top", "my", "cancel", "admin", "reload"), args[0]);
+            List<String> values = new ArrayList<>(List.of("info", "list", "top"));
+            if (sender instanceof Player && sender.hasPermission("bounty.place")) {
+                values.add("place");
+            }
+            if (sender instanceof Player) {
+                values.add("my");
+                if (sender.hasPermission("bounty.cancel.own")) {
+                    values.add("cancel");
+                }
+            }
+            if (sender.hasPermission("bounty.admin.manage") || sender.hasPermission("bounty.admin.history")) {
+                values.add("admin");
+            }
+            if (sender.hasPermission("bounty.admin.reload")) {
+                values.add("reload");
+            }
+            return filter(values, args[0]);
         }
         if (args.length == 2 && "admin".equalsIgnoreCase(args[0])) {
-            return filter(List.of("add", "remove", "refund", "history", "testdiscord"), args[1]);
+            List<String> values = new ArrayList<>();
+            if (sender.hasPermission("bounty.admin.manage")) {
+                values.addAll(List.of("add", "remove", "refund", "testdiscord"));
+            }
+            if (sender.hasPermission("bounty.admin.history")) {
+                values.add("history");
+            }
+            return filter(values, args[1]);
         }
         return List.of();
     }
@@ -219,7 +245,10 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             case "refund" -> handleAdminRefund(sender, args);
             case "history" -> handleAdminHistory(sender, args);
             case "testdiscord" -> handleAdminTestDiscord(sender);
-            default -> true;
+            default -> {
+                sendAdminHelp(sender);
+                yield true;
+            }
         };
     }
 
@@ -338,17 +367,51 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendHelp(CommandSender sender) {
-        List<String> lines = Arrays.asList(
+        List<String> lines = new ArrayList<>(Arrays.asList(
             "/bounty",
-            "/bounty place <player> <amount>",
             "/bounty info <player>",
             "/bounty list [page]",
-            "/bounty top [limit]",
-            "/bounty my",
-            "/bounty cancel <player>",
-            "/bounty admin testdiscord"
-        );
+            "/bounty top [limit]"
+        ));
+        if (sender instanceof Player && sender.hasPermission("bounty.place")) {
+            lines.add("/bounty place <player> <amount>");
+        }
+        if (sender instanceof Player) {
+            lines.add("/bounty my");
+            if (sender.hasPermission("bounty.cancel.own")) {
+                lines.add("/bounty cancel <player>");
+            }
+        }
+        if (sender.hasPermission("bounty.admin.manage") || sender.hasPermission("bounty.admin.history")) {
+            lines.add("/bounty admin ...");
+        }
+        if (sender.hasPermission("bounty.admin.reload")) {
+            lines.add("/bounty reload");
+        }
         sender.sendMessage(Component.text("Bounty commands", NamedTextColor.GOLD));
+        for (String line : lines) {
+            sender.sendMessage(Component.text(line, NamedTextColor.YELLOW));
+        }
+    }
+
+    private void sendAdminHelp(CommandSender sender) {
+        List<String> lines = new ArrayList<>();
+        if (sender.hasPermission("bounty.admin.manage")) {
+            lines.addAll(List.of(
+                "/bounty admin add <player> <amount> [placer]",
+                "/bounty admin remove <player>",
+                "/bounty admin refund <player> [placer]",
+                "/bounty admin testdiscord"
+            ));
+        }
+        if (sender.hasPermission("bounty.admin.history")) {
+            lines.add("/bounty admin history <player>");
+        }
+        if (lines.isEmpty()) {
+            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            return;
+        }
+        sender.sendMessage(Component.text("Bounty admin commands", NamedTextColor.GOLD));
         for (String line : lines) {
             sender.sendMessage(Component.text(line, NamedTextColor.YELLOW));
         }
