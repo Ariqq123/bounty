@@ -1,0 +1,14 @@
+bounty:
+  min-amount: 100
+  max-amount: 0
+  cancel-refund-percent: 80
+
+anti-abuse:
+  claim-cooldown-seconds-per-pair: 3600
+
+gui:
+  page-size: 28
+
+messages:
+  broadcast-place: true
+  broadcast-claim: true

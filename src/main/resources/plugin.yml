@@ -1,0 +1,23 @@
+name: Bounty
+version: ${version}
+main: dev.ariqq.bounty.BountyPlugin
+api-version: "1.21"
+depend: [Vault]
+authors: [Ariqq123]
+commands:
+  bounty:
+    description: Main bounty command
+    usage: /bounty
+permissions:
+  bounty.use:
+    default: true
+  bounty.place:
+    default: true
+  bounty.cancel.own:
+    default: true
+  bounty.admin.manage:
+    default: op
+  bounty.admin.reload:
+    default: op
+  bounty.admin.history:
+    default: op
