@@ -77,7 +77,7 @@ public final class BountyService {
             notifier.notifyBountyPlaced(placerName, target.name(), amount, total, false);
             return ServiceResult.success("Placed bounty of " + MoneyFormatter.format(amount) + " on " + target.name() + ". Total pool: " + MoneyFormatter.format(total) + ".");
         } catch (SQLException exception) {
-            economy.deposit(placerUuid, placerName, amount);
+            restoreDeposit(placerUuid, placerName, amount, "failed bounty placement rollback");
             logger.warning("Failed to place bounty: " + exception.getMessage());
             return ServiceResult.failure("Failed to save the bounty.");
         }
@@ -86,6 +86,9 @@ public final class BountyService {
     public ServiceResult adminAddBounty(KnownPlayer target, long amount, KnownPlayer placer) {
         if (amount < config().minAmount()) {
             return ServiceResult.failure("Minimum bounty is " + config().minAmount() + ".");
+        }
+        if (config().maxAmount() > 0 && amount > config().maxAmount()) {
+            return ServiceResult.failure("Maximum bounty is " + config().maxAmount() + ".");
         }
         KnownPlayer effectivePlacer = placer == null ? new KnownPlayer(CONSOLE_UUID, CONSOLE_NAME) : placer;
         try {
@@ -420,6 +423,12 @@ public final class BountyService {
             return false;
         }
         return lastClaim.get().plusSeconds(config().claimCooldownSecondsPerPair()).isAfter(Instant.now());
+    }
+
+    private void restoreDeposit(UUID playerUuid, String playerName, long amount, String context) {
+        if (!economy.deposit(playerUuid, playerName, amount)) {
+            logger.severe("Failed to restore " + context + " for " + playerName + " amount=" + amount + ".");
+        }
     }
 
     private boolean isValidWebhookUrl(String webhookUrl) {

@@ -182,6 +182,21 @@ class BountyServiceTest {
     }
 
     @Test
+    void adminAddRespectsConfiguredMaximum() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::limitedConfig);
+        UUID target = UUID.randomUUID();
+
+        ServiceResult result = service.adminAddBounty(new KnownPlayer(target, "Target"), 1_500L, null);
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals(0L, repository.getUnsafeTotal(target));
+        Assertions.assertEquals(0, notifier.placedEvents);
+    }
+
+    @Test
     void listActiveTargetsReturnsEmptyWhenPageOffsetWouldOverflow() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
@@ -252,6 +267,10 @@ class BountyServiceTest {
 
     private static BountyConfig testConfig() {
         return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "https://example.test/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
+    }
+
+    private static BountyConfig limitedConfig() {
+        return new BountyConfig(100, 1_000, 80, 3600, 28, false, false, true, "https://example.test/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
     }
 
     private static BountyConfig disabledDiscordConfig() {
