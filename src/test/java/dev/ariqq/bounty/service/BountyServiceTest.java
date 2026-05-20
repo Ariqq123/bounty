@@ -477,10 +477,28 @@ class BountyServiceTest {
 
         Assertions.assertFalse(removed.success());
         Assertions.assertEquals(
-            "Cannot remove active player-funded contributions from Target. Use /bounty admin refund Target instead.",
+            "Cannot remove active refundable player-funded contributions from Target. Use /bounty admin refund Target instead.",
             removed.message()
         );
         Assertions.assertEquals(500L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
+    void adminRemoveAllowsUnsafePlayerFundedContributionCleanup() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+        UUID placer = UUID.randomUUID();
+
+        repository.insertRawActiveContribution(target, "Target", placer, "Hunter", BountyConfig.MAX_SAFE_ECONOMY_AMOUNT + 1L, false);
+
+        ServiceResult removed = service.adminRemoveTarget(new KnownPlayer(target, "Target"));
+
+        Assertions.assertTrue(removed.success());
+        Assertions.assertEquals("Removed 1 non-refundable contribution(s) from Target.", removed.message());
+        Assertions.assertEquals(0L, repository.getUnsafeTotal(target));
     }
 
     @Test

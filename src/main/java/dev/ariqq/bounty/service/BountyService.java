@@ -210,10 +210,14 @@ public final class BountyService {
             }
 
             boolean hasRefundablePlayerContribution = contributions.stream()
-                .anyMatch(contribution -> !contribution.adminFunded() && !CONSOLE_UUID.equals(contribution.placerUuid()));
+                .anyMatch(contribution ->
+                    !contribution.adminFunded()
+                        && !CONSOLE_UUID.equals(contribution.placerUuid())
+                        && isSafeEconomyAmount(contribution.amount())
+                );
             if (hasRefundablePlayerContribution) {
                 return ServiceResult.failure(
-                    "Cannot remove active player-funded contributions from " + target.name() + ". Use /bounty admin refund " + target.name() + " instead."
+                    "Cannot remove active refundable player-funded contributions from " + target.name() + ". Use /bounty admin refund " + target.name() + " instead."
                 );
             }
 
