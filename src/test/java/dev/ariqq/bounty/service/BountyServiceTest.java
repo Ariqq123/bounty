@@ -290,6 +290,29 @@ class BountyServiceTest {
     }
 
     @Test
+    void adminRemoveReportsPartialFailuresAndLeavesContributionActive() {
+        InMemoryRepository repository = new InMemoryRepository();
+        repository.failNextTransition = true;
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+        UUID attributedPlacer = UUID.randomUUID();
+
+        service.adminAddBounty(new KnownPlayer(target, "Target"), 300L, new KnownPlayer(attributedPlacer, "HunterOne"));
+        service.adminAddBounty(new KnownPlayer(target, "Target"), 500L, null);
+
+        ServiceResult removed = service.adminRemoveTarget(new KnownPlayer(target, "Target"));
+
+        Assertions.assertTrue(removed.success());
+        Assertions.assertEquals(
+            "Removed 1 non-refundable contribution(s) from Target. 1 contribution(s) could not be processed and remain active.",
+            removed.message()
+        );
+        Assertions.assertEquals(500L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
     void adminRefundReportsPartialFailuresAndLeavesUnprocessedContributionActive() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();

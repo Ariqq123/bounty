@@ -166,16 +166,25 @@ public final class BountyService {
             }
 
             int removed = 0;
+            int failed = 0;
             for (BountyContribution contribution : contributions) {
                 if (repository.transitionContributionStatus(contribution.id(), ContributionStatus.ACTIVE, ContributionStatus.REMOVED)) {
                     removed++;
+                } else {
+                    failed++;
                 }
             }
             if (removed == 0) {
+                if (failed > 0) {
+                    return ServiceResult.failure("No non-refundable contribution could be removed. " + failed + " contribution(s) remain active.");
+                }
                 return ServiceResult.failure("No active bounty could be removed for " + target.name() + ".");
             }
             notifier.notifyAdminTargetRemoved(target.name(), removed);
-            return ServiceResult.success("Removed " + removed + " non-refundable contribution(s) from " + target.name() + ".");
+            return partialAwareSuccess(
+                "Removed " + removed + " non-refundable contribution(s) from " + target.name() + ".",
+                failed
+            );
         } catch (SQLException exception) {
             logger.warning("Failed to remove target bounty: " + exception.getMessage());
             return ServiceResult.failure("Failed to remove target bounty.");
