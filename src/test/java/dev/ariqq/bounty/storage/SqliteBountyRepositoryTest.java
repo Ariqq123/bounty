@@ -1,6 +1,7 @@
 package dev.ariqq.bounty.storage;
 
 import dev.ariqq.bounty.model.BountyClaim;
+import dev.ariqq.bounty.model.ContributionStatus;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -107,6 +108,32 @@ class SqliteBountyRepositoryTest {
             var listed = repository.listActiveTargetSummaries(10, 0);
             Assertions.assertEquals(1, listed.size());
             Assertions.assertEquals("Aaron", listed.getFirst().targetName());
+        }
+    }
+
+    @Test
+    void transitionContributionStatusesRollsBackOnMidBatchMismatch() throws Exception {
+        UUID targetUuid = UUID.randomUUID();
+        UUID placerOne = UUID.randomUUID();
+        UUID placerTwo = UUID.randomUUID();
+
+        try (SqliteBountyRepository repository = new SqliteBountyRepository(tempDir.resolve("bounty.db"))) {
+            repository.upsertActiveContribution(targetUuid, "Target", placerOne, "HunterOne", 300L, false);
+            repository.upsertActiveContribution(targetUuid, "Target", placerTwo, "HunterTwo", 500L, false);
+
+            var contributions = repository.getActiveContributionsByTarget(targetUuid);
+            long activeId = contributions.get(1).id();
+            long soonInvalidId = contributions.getFirst().id();
+            repository.transitionContributionStatus(soonInvalidId, ContributionStatus.ACTIVE, ContributionStatus.CANCELLED);
+
+            int transitioned = repository.transitionContributionStatuses(
+                List.of(activeId, soonInvalidId),
+                ContributionStatus.ACTIVE,
+                ContributionStatus.REMOVED
+            );
+
+            Assertions.assertEquals(0, transitioned);
+            Assertions.assertEquals(300L, repository.getActiveTotalForTarget(targetUuid));
         }
     }
 }

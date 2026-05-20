@@ -307,7 +307,7 @@ public final class SqliteBountyRepository implements BountyRepository {
             int updated = transitionContributionStatusesInternal(contributionIds, fromStatus, toStatus, Instant.now());
             if (updated != contributionIds.size()) {
                 connection.rollback();
-                return updated;
+                return 0;
             }
             connection.commit();
             return updated;

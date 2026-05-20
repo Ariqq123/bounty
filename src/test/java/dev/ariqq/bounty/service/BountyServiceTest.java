@@ -710,7 +710,7 @@ class BountyServiceTest {
                     for (Long transitionedId : transitioned) {
                         transitionContributionStatus(transitionedId, toStatus, fromStatus);
                     }
-                    return transitioned.size();
+                    return 0;
                 }
                 transitioned.add(contributionId);
             }
