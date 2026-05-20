@@ -121,6 +121,18 @@ class BountyServiceTest {
         Assertions.assertEquals(1, notifier.claimEvents);
     }
 
+    @Test
+    void discordTestNotificationCanBeTriggered() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+
+        service.sendDiscordTest("Console");
+
+        Assertions.assertEquals(1, notifier.testEvents);
+    }
+
     private static BountyConfig testConfig() {
         return new BountyConfig(100, 0, 80, 3600, 28, false, false, false, "", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
     }
@@ -129,6 +141,7 @@ class BountyServiceTest {
         private int placedEvents;
         private int cancelEvents;
         private int claimEvents;
+        private int testEvents;
 
         @Override
         public void notifyBountyPlaced(String placerName, String targetName, long amount, long totalPool, boolean adminAction) {
@@ -151,6 +164,11 @@ class BountyServiceTest {
 
         @Override
         public void notifyAdminRefund(String targetName, long refundedAmount, int refundedContributions) {
+        }
+
+        @Override
+        public void notifyTestMessage(String requestedBy) {
+            testEvents++;
         }
     }
     private static final class FakeEconomy implements EconomyAdapter {

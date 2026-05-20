@@ -10,4 +10,6 @@ public interface BountyNotifier {
     void notifyAdminTargetRemoved(String targetName, int removedContributions);
 
     void notifyAdminRefund(String targetName, long refundedAmount, int refundedContributions);
+
+    void notifyTestMessage(String requestedBy);
 }

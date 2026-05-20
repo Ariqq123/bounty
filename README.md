@@ -72,6 +72,8 @@ This project currently targets `Paper 1.21.x` and uses `Vault` plus a Vault-comp
   Refund active contributions back to their original placers.
 - `/bounty admin history <player>`
   Show recent claim history for a target.
+- `/bounty admin testdiscord`
+  Send a Discord webhook test embed immediately.
 - `/bounty reload`
   Reload the plugin configuration.
 
@@ -146,6 +148,7 @@ Supported webhook embed events:
 - Bounty claims
 - Player bounty cancellations
 - Admin add/remove/refund actions
+- Manual test embeds via `/bounty admin testdiscord`
 
 Embed color keys:
 

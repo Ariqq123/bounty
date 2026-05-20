@@ -20,4 +20,8 @@ public final class NoOpBountyNotifier implements BountyNotifier {
     @Override
     public void notifyAdminRefund(String targetName, long refundedAmount, int refundedContributions) {
     }
+
+    @Override
+    public void notifyTestMessage(String requestedBy) {
+    }
 }

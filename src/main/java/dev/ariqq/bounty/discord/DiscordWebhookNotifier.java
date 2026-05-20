@@ -1,6 +1,7 @@
 package dev.ariqq.bounty.discord;
 
 import dev.ariqq.bounty.config.BountyConfig;
+import dev.ariqq.bounty.util.MoneyFormatter;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -39,7 +40,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             [{"name":"Target","value":"%s","inline":true},
             {"name":"Added Amount","value":"%d","inline":true},
             {"name":"Total Pool","value":"%d","inline":true}]
-            """.formatted(escapeJson(targetName), amount, totalPool)
+            """.formatted(escapeJson(targetName), escapeJson(MoneyFormatter.format(amount)), escapeJson(MoneyFormatter.format(totalPool)))
         );
     }
 
@@ -56,7 +57,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             """
             [{"name":"Target","value":"%s","inline":true},
             {"name":"Refunded","value":"%d","inline":true}]
-            """.formatted(escapeJson(targetName), refundAmount)
+            """.formatted(escapeJson(targetName), escapeJson(MoneyFormatter.format(refundAmount)))
         );
     }
 
@@ -74,7 +75,7 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             [{"name":"Target","value":"%s","inline":true},
             {"name":"Reward","value":"%d","inline":true},
             {"name":"Contributions","value":"%d","inline":true}]
-            """.formatted(escapeJson(targetName), totalAmount, sourceCount)
+            """.formatted(escapeJson(targetName), escapeJson(MoneyFormatter.format(totalAmount)), sourceCount)
         );
     }
 
@@ -109,7 +110,21 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
             [{"name":"Target","value":"%s","inline":true},
             {"name":"Refunded Amount","value":"%d","inline":true},
             {"name":"Refunded Contributions","value":"%d","inline":true}]
-            """.formatted(escapeJson(targetName), refundedAmount, refundedContributions)
+            """.formatted(escapeJson(targetName), escapeJson(MoneyFormatter.format(refundedAmount)), refundedContributions)
+        );
+    }
+
+    @Override
+    public void notifyTestMessage(String requestedBy) {
+        BountyConfig config = configSupplier.get();
+        sendEmbed(
+            "Discord Integration OK",
+            "Webhook test sent successfully from the server.",
+            config.discordColorAdmin(),
+            """
+            [{"name":"Requested By","value":"%s","inline":true},
+            {"name":"Status","value":"Ready to send bounty events","inline":true}]
+            """.formatted(escapeJson(requestedBy))
         );
     }
 

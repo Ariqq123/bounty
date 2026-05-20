@@ -69,7 +69,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             return filter(List.of("place", "info", "list", "top", "my", "cancel", "admin", "reload"), args[0]);
         }
         if (args.length == 2 && "admin".equalsIgnoreCase(args[0])) {
-            return filter(List.of("add", "remove", "refund", "history"), args[1]);
+            return filter(List.of("add", "remove", "refund", "history", "testdiscord"), args[1]);
         }
         return List.of();
     }
@@ -208,6 +208,7 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             case "remove" -> handleAdminRemove(sender, args);
             case "refund" -> handleAdminRefund(sender, args);
             case "history" -> handleAdminHistory(sender, args);
+            case "testdiscord" -> handleAdminTestDiscord(sender);
             default -> true;
         };
     }
@@ -292,6 +293,16 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    private boolean handleAdminTestDiscord(CommandSender sender) {
+        if (!sender.hasPermission("bounty.admin.manage")) {
+            sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
+            return true;
+        }
+        bountyService.sendDiscordTest(sender.getName());
+        sender.sendMessage(Component.text("Discord test embed queued.", NamedTextColor.GREEN));
+        return true;
+    }
+
     private boolean handleReload(CommandSender sender) {
         if (!sender.hasPermission("bounty.admin.reload")) {
             sender.sendMessage(Component.text("You do not have permission.", NamedTextColor.RED));
@@ -310,7 +321,8 @@ public final class BountyCommand implements CommandExecutor, TabCompleter {
             "/bounty list [page]",
             "/bounty top [limit]",
             "/bounty my",
-            "/bounty cancel <player>"
+            "/bounty cancel <player>",
+            "/bounty admin testdiscord"
         );
         sender.sendMessage(Component.text("Bounty commands", NamedTextColor.GOLD));
         for (String line : lines) {

@@ -10,6 +10,7 @@ import dev.ariqq.bounty.model.ContributionStatus;
 import dev.ariqq.bounty.model.KnownPlayer;
 import dev.ariqq.bounty.model.ServiceResult;
 import dev.ariqq.bounty.storage.BountyRepository;
+import dev.ariqq.bounty.util.MoneyFormatter;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Collections;
@@ -73,7 +74,7 @@ public final class BountyService {
             long total = repository.getActiveTotalForTarget(target.uuid());
             announcePlacement(placerName, target.name(), amount, total);
             notifier.notifyBountyPlaced(placerName, target.name(), amount, total, false);
-            return ServiceResult.success("Placed bounty of " + amount + " on " + target.name() + ". Total pool: " + total + ".");
+            return ServiceResult.success("Placed bounty of " + MoneyFormatter.format(amount) + " on " + target.name() + ". Total pool: " + MoneyFormatter.format(total) + ".");
         } catch (SQLException exception) {
             economy.deposit(placerUuid, placerName, amount);
             logger.warning("Failed to place bounty: " + exception.getMessage());
@@ -96,7 +97,7 @@ public final class BountyService {
                 ));
             }
             notifier.notifyBountyPlaced(effectivePlacer.name(), target.name(), amount, total, true);
-            return ServiceResult.success("Added admin bounty. Total pool: " + total + ".");
+            return ServiceResult.success("Added admin bounty. Total pool: " + MoneyFormatter.format(total) + ".");
         } catch (SQLException exception) {
             logger.warning("Failed to add admin bounty: " + exception.getMessage());
             return ServiceResult.failure("Failed to save the bounty.");
@@ -124,7 +125,7 @@ public final class BountyService {
             }
 
             notifier.notifyBountyCancelled(placerName, target.name(), refund);
-            return ServiceResult.success("Cancelled your bounty on " + target.name() + ". Refunded " + refund + ".");
+            return ServiceResult.success("Cancelled your bounty on " + target.name() + ". Refunded " + MoneyFormatter.format(refund) + ".");
         } catch (SQLException exception) {
             logger.warning("Failed to cancel bounty: " + exception.getMessage());
             return ServiceResult.failure("Failed to cancel the bounty.");
@@ -180,7 +181,7 @@ public final class BountyService {
                 return ServiceResult.failure("No contribution could be refunded.");
             }
             notifier.notifyAdminRefund(target.name(), refunded, updated);
-            return ServiceResult.success("Refunded " + refunded + " across " + updated + " contribution(s).");
+            return ServiceResult.success("Refunded " + MoneyFormatter.format(refunded) + " across " + updated + " contribution(s).");
         } catch (SQLException exception) {
             logger.warning("Failed to refund bounty: " + exception.getMessage());
             return ServiceResult.failure("Failed to refund bounty.");
@@ -232,7 +233,7 @@ public final class BountyService {
                 ));
             }
             notifier.notifyBountyClaimed(killerName, targetName, total, contributions.size());
-            return ClaimResult.success("Claimed bounty of " + total + ".", total, targetName);
+            return ClaimResult.success("Claimed bounty of " + MoneyFormatter.format(total) + ".", total, targetName);
         } catch (SQLException exception) {
             logger.warning("Failed to process bounty claim: " + exception.getMessage());
             return ClaimResult.failure("Failed to process bounty claim.");
@@ -330,7 +331,7 @@ public final class BountyService {
     }
 
     public String formatSummary(BountyTargetSummary summary) {
-        return summary.targetName() + " - " + summary.totalAmount() + " (" + summary.contributorCount() + " contributors)";
+        return summary.targetName() + " - " + MoneyFormatter.format(summary.totalAmount()) + " (" + summary.contributorCount() + " contributors)";
     }
 
     public void sendInfo(CommandSender sender, KnownPlayer target) {
@@ -340,8 +341,12 @@ public final class BountyService {
             return;
         }
         BountyTargetSummary targetSummary = summary.get();
-        sender.sendMessage(Component.text("Bounty on " + target.name() + ": " + targetSummary.totalAmount(), NamedTextColor.GOLD));
+        sender.sendMessage(Component.text("Bounty on " + target.name() + ": " + MoneyFormatter.format(targetSummary.totalAmount()), NamedTextColor.GOLD));
         sender.sendMessage(Component.text("Contributors: " + targetSummary.contributorCount(), NamedTextColor.YELLOW));
+    }
+
+    public void sendDiscordTest(String requestedBy) {
+        notifier.notifyTestMessage(requestedBy);
     }
 
     private void announcePlacement(String placerName, String targetName, long amount, long total) {
