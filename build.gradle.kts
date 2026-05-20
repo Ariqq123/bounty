@@ -15,6 +15,7 @@ dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.5-R0.1-SNAPSHOT")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7.1")
     testImplementation("io.papermc.paper:paper-api:1.21.5-R0.1-SNAPSHOT")
+    testImplementation("com.github.MilkBowl:VaultAPI:1.7.1")
 
     implementation("org.xerial:sqlite-jdbc:3.49.1.0")
 

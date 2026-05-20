@@ -20,25 +20,17 @@ public final class VaultEconomyAdapter implements EconomyAdapter {
 
     @Override
     public boolean withdraw(UUID playerId, String playerName, double amount) {
-        EconomyResponse response = economy.withdrawPlayer(resolvePlayer(playerId, playerName), amount);
+        EconomyResponse response = economy.withdrawPlayer(resolvePlayer(playerId), amount);
         return response.transactionSuccess();
     }
 
     @Override
     public boolean deposit(UUID playerId, String playerName, double amount) {
-        EconomyResponse response = economy.depositPlayer(resolvePlayer(playerId, playerName), amount);
+        EconomyResponse response = economy.depositPlayer(resolvePlayer(playerId), amount);
         return response.transactionSuccess();
     }
 
     private OfflinePlayer resolvePlayer(UUID playerId) {
         return Bukkit.getOfflinePlayer(playerId);
-    }
-
-    private OfflinePlayer resolvePlayer(UUID playerId, String playerName) {
-        OfflinePlayer player = Bukkit.getOfflinePlayer(playerId);
-        if (player.getName() != null) {
-            return player;
-        }
-        return Bukkit.getOfflinePlayer(playerName);
     }
 }
