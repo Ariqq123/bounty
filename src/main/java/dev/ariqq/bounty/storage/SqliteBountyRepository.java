@@ -15,6 +15,7 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +38,11 @@ public final class SqliteBountyRepository implements BountyRepository {
 
     private void initialize() throws SQLException {
         try (Statement statement = connection.createStatement()) {
+            statement.execute("PRAGMA journal_mode = WAL");
+            statement.execute("PRAGMA synchronous = NORMAL");
+            statement.execute("PRAGMA cache_size = -16000");
+            statement.execute("PRAGMA temp_store = MEMORY");
+
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS bounty_contributions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,28 +78,34 @@ public final class SqliteBountyRepository implements BountyRepository {
                     PRIMARY KEY (killer_uuid, target_uuid)
                 )
                 """);
+            
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_bounty_contributions_target_status ON bounty_contributions(target_uuid, status)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_bounty_contributions_placer_status ON bounty_contributions(placer_uuid, status)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_bounty_contributions_status ON bounty_contributions(status)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_bounty_claims_target ON bounty_claims(target_uuid)");
         }
     }
 
     @Override
     public synchronized void upsertActiveContribution(UUID targetUuid, String targetName, UUID placerUuid, String placerName, long amount, boolean adminFunded)
         throws SQLException {
-        Optional<BountyContribution> existing = getActiveContributionInternal(targetUuid, placerUuid, adminFunded);
         Instant now = Instant.now();
-        if (existing.isPresent()) {
-            try (PreparedStatement statement = connection.prepareStatement("""
-                UPDATE bounty_contributions
-                SET amount = ?, target_name = ?, placer_name = ?, updated_at = ?
-                WHERE id = ?
-                """)) {
-                statement.setLong(1, existing.get().amount() + amount);
-                statement.setString(2, targetName);
-                statement.setString(3, placerName);
-                statement.setString(4, now.toString());
-                statement.setLong(5, existing.get().id());
-                statement.executeUpdate();
+        try (PreparedStatement statement = connection.prepareStatement("""
+            UPDATE bounty_contributions
+            SET amount = amount + ?, target_name = ?, placer_name = ?, updated_at = ?
+            WHERE target_uuid = ? AND placer_uuid = ? AND admin_funded = ? AND status = ?
+            """)) {
+            statement.setLong(1, amount);
+            statement.setString(2, targetName);
+            statement.setString(3, placerName);
+            statement.setString(4, now.toString());
+            statement.setString(5, targetUuid.toString());
+            statement.setString(6, placerUuid.toString());
+            statement.setInt(7, adminFunded ? 1 : 0);
+            statement.setString(8, ContributionStatus.ACTIVE.name());
+            if (statement.executeUpdate() > 0) {
+                return;
             }
-            return;
         }
 
         try (PreparedStatement statement = connection.prepareStatement("""
@@ -447,21 +459,25 @@ public final class SqliteBountyRepository implements BountyRepository {
         ContributionStatus toStatus,
         Instant updatedAt
     ) throws SQLException {
-        int updated = 0;
-        try (PreparedStatement statement = connection.prepareStatement("""
-            UPDATE bounty_contributions
-            SET status = ?, updated_at = ?
-            WHERE id = ? AND status = ?
-            """)) {
-            for (Long contributionId : contributionIds) {
-                statement.setString(1, toStatus.name());
-                statement.setString(2, updatedAt.toString());
-                statement.setLong(3, contributionId);
-                statement.setString(4, fromStatus.name());
-                updated += statement.executeUpdate();
-            }
+        if (contributionIds.isEmpty()) {
+            return 0;
         }
-        return updated;
+
+        String placeholders = String.join(",", Collections.nCopies(contributionIds.size(), "?"));
+        String sql = "UPDATE bounty_contributions "
+            + "SET status = ?, updated_at = ? "
+            + "WHERE id IN (" + placeholders + ") AND status = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, toStatus.name());
+            statement.setString(2, updatedAt.toString());
+
+            int parameterIndex = 3;
+            for (Long contributionId : contributionIds) {
+                statement.setLong(parameterIndex++, contributionId);
+            }
+            statement.setString(parameterIndex, fromStatus.name());
+            return statement.executeUpdate();
+        }
     }
 
     private void insertClaimInternal(
