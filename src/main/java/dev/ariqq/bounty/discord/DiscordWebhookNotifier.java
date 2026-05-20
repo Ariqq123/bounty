@@ -104,12 +104,12 @@ public final class DiscordWebhookNotifier implements BountyNotifier {
         }
         sendEmbed(
             "Admin Refund",
-            "An admin refunded bounty contributions.",
+            "An admin closed bounty contributions and refunded any eligible player funds.",
             config.discordColorAdmin(),
             """
             [{"name":"Target","value":"%s","inline":true},
             {"name":"Refunded Amount","value":"%s","inline":true},
-            {"name":"Refunded Contributions","value":"%d","inline":true}]
+            {"name":"Closed Contributions","value":"%d","inline":true}]
             """.formatted(escapeJson(targetName), escapeJson(MoneyFormatter.format(refundedAmount)), refundedContributions)
         );
     }

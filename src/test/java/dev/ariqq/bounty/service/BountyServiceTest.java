@@ -197,6 +197,23 @@ class BountyServiceTest {
     }
 
     @Test
+    void adminRefundConsoleContributionReportsClosedWithoutFunds() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+
+        ServiceResult added = service.adminAddBounty(new KnownPlayer(target, "Target"), 500L, null);
+        ServiceResult refunded = service.adminRefundTarget(new KnownPlayer(target, "Target"), null);
+
+        Assertions.assertTrue(added.success());
+        Assertions.assertTrue(refunded.success());
+        Assertions.assertEquals("Closed 1 contribution(s). No player funds were refunded.", refunded.message());
+        Assertions.assertEquals(0L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
     void listActiveTargetsReturnsEmptyWhenPageOffsetWouldOverflow() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();

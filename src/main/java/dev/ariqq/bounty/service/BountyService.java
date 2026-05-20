@@ -164,7 +164,8 @@ public final class BountyService {
             }
 
             long refunded = 0L;
-            int updated = 0;
+            int closed = 0;
+            int refundedContributions = 0;
             for (BountyContribution contribution : contributions) {
                 if (!CONSOLE_UUID.equals(contribution.placerUuid())) {
                     if (!economy.deposit(contribution.placerUuid(), contribution.placerName(), contribution.amount())) {
@@ -177,22 +178,32 @@ public final class BountyService {
                             continue;
                         }
                         refunded += contribution.amount();
-                        updated++;
+                        refundedContributions++;
+                        closed++;
                     } catch (SQLException exception) {
                         compensateDeposit(contribution.placerUuid(), contribution.placerName(), contribution.amount(), "admin refund rollback");
                         throw exception;
                     }
                 } else {
                     if (repository.transitionContributionStatus(contribution.id(), ContributionStatus.ACTIVE, ContributionStatus.REFUNDED)) {
-                        updated++;
+                        closed++;
                     }
                 }
             }
-            if (updated == 0) {
+            if (closed == 0) {
                 return ServiceResult.failure("No contribution could be refunded.");
             }
-            notifier.notifyAdminRefund(target.name(), refunded, updated);
-            return ServiceResult.success("Refunded " + MoneyFormatter.format(refunded) + " across " + updated + " contribution(s).");
+            notifier.notifyAdminRefund(target.name(), refunded, closed);
+            if (refundedContributions == 0) {
+                return ServiceResult.success("Closed " + closed + " contribution(s). No player funds were refunded.");
+            }
+            return ServiceResult.success(
+                "Closed " + closed + " contribution(s). Refunded "
+                    + MoneyFormatter.format(refunded)
+                    + " across "
+                    + refundedContributions
+                    + " player contribution(s)."
+            );
         } catch (SQLException exception) {
             logger.warning("Failed to refund bounty: " + exception.getMessage());
             return ServiceResult.failure("Failed to refund bounty.");
