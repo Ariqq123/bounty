@@ -265,6 +265,28 @@ class BountyServiceTest {
     }
 
     @Test
+    void targetSummaryCountsUniqueContributorsAcrossFundingSources() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID playerUuid = UUID.randomUUID();
+        UUID targetUuid = UUID.randomUUID();
+        KnownPlayer target = new KnownPlayer(targetUuid, "Target");
+        KnownPlayer samePlayer = new KnownPlayer(playerUuid, "Hunter");
+
+        economy.setBalance(playerUuid, 10_000);
+        ServiceResult placed = service.placeBounty(playerUuid, "Hunter", target, 400L);
+        ServiceResult adminAdded = service.adminAddBounty(target, 600L, samePlayer);
+
+        Assertions.assertTrue(placed.success());
+        Assertions.assertTrue(adminAdded.success());
+        BountyTargetSummary summary = service.getTargetSummary(targetUuid).orElseThrow();
+        Assertions.assertEquals(1_000L, summary.totalAmount());
+        Assertions.assertEquals(1, summary.contributorCount());
+    }
+
+    @Test
     void listActiveTargetsReturnsEmptyWhenPageOffsetWouldOverflow() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
@@ -501,7 +523,11 @@ class BountyServiceTest {
             if (byTarget.isEmpty()) {
                 return Optional.empty();
             }
-            return Optional.of(new BountyTargetSummary(targetUuid, byTarget.getFirst().targetName(), getActiveTotalForTarget(targetUuid), byTarget.size()));
+            int contributors = (int) byTarget.stream()
+                .map(BountyContribution::placerUuid)
+                .distinct()
+                .count();
+            return Optional.of(new BountyTargetSummary(targetUuid, byTarget.getFirst().targetName(), getActiveTotalForTarget(targetUuid), contributors));
         }
 
         @Override
@@ -523,7 +549,7 @@ class BountyServiceTest {
                     list.getFirst().targetUuid(),
                     list.getFirst().targetName(),
                     list.stream().mapToLong(BountyContribution::amount).sum(),
-                    list.size()
+                    (int) list.stream().map(BountyContribution::placerUuid).distinct().count()
                 ))
                 .sorted(Comparator.comparingLong(BountyTargetSummary::totalAmount).reversed())
                 .skip(offset)

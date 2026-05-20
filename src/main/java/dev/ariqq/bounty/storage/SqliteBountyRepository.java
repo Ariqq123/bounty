@@ -183,7 +183,7 @@ public final class SqliteBountyRepository implements BountyRepository {
     @Override
     public synchronized Optional<BountyTargetSummary> getTargetSummary(UUID targetUuid) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
-            SELECT target_uuid, MAX(target_name) AS target_name, COALESCE(SUM(amount), 0) AS total, COUNT(*) AS contributors
+            SELECT target_uuid, MAX(target_name) AS target_name, COALESCE(SUM(amount), 0) AS total, COUNT(DISTINCT placer_uuid) AS contributors
             FROM bounty_contributions
             WHERE target_uuid = ? AND status = ?
             GROUP BY target_uuid
@@ -217,7 +217,7 @@ public final class SqliteBountyRepository implements BountyRepository {
     @Override
     public synchronized List<BountyTargetSummary> listActiveTargetSummaries(int limit, int offset) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
-            SELECT target_uuid, MAX(target_name) AS target_name, COALESCE(SUM(amount), 0) AS total, COUNT(*) AS contributors
+            SELECT target_uuid, MAX(target_name) AS target_name, COALESCE(SUM(amount), 0) AS total, COUNT(DISTINCT placer_uuid) AS contributors
             FROM bounty_contributions
             WHERE status = ?
             GROUP BY target_uuid

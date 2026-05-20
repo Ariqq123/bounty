@@ -69,4 +69,23 @@ class SqliteBountyRepositoryTest {
             Assertions.assertEquals(claimedAt, repository.getLastClaimForPair(killerUuid, targetUuid).orElseThrow());
         }
     }
+
+    @Test
+    void targetSummaryCountsUniqueContributorsAcrossFundingSources() throws Exception {
+        UUID targetUuid = UUID.randomUUID();
+        UUID placerUuid = UUID.randomUUID();
+
+        try (SqliteBountyRepository repository = new SqliteBountyRepository(tempDir.resolve("bounty.db"))) {
+            repository.upsertActiveContribution(targetUuid, "Target", placerUuid, "Hunter", 300L, false);
+            repository.upsertActiveContribution(targetUuid, "Target", placerUuid, "Hunter", 700L, true);
+
+            var summary = repository.getTargetSummary(targetUuid).orElseThrow();
+            Assertions.assertEquals(1_000L, summary.totalAmount());
+            Assertions.assertEquals(1, summary.contributorCount());
+
+            var listed = repository.listActiveTargetSummaries(10, 0);
+            Assertions.assertEquals(1, listed.size());
+            Assertions.assertEquals(1, listed.getFirst().contributorCount());
+        }
+    }
 }
