@@ -14,6 +14,7 @@ import dev.ariqq.bounty.util.MoneyFormatter;
 import java.net.URI;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -167,12 +168,12 @@ public final class BountyService {
 
             int removed = 0;
             int failed = 0;
-            for (BountyContribution contribution : contributions) {
-                if (repository.transitionContributionStatus(contribution.id(), ContributionStatus.ACTIVE, ContributionStatus.REMOVED)) {
-                    removed++;
-                } else {
-                    failed++;
-                }
+            List<Long> removableIds = contributions.stream()
+                .map(BountyContribution::id)
+                .toList();
+            removed = repository.transitionContributionStatuses(removableIds, ContributionStatus.ACTIVE, ContributionStatus.REMOVED);
+            if (removed != removableIds.size()) {
+                failed = removableIds.size() - removed;
             }
             if (removed == 0) {
                 if (failed > 0) {
@@ -207,6 +208,8 @@ public final class BountyService {
             int closed = 0;
             int refundedContributions = 0;
             int failed = 0;
+            List<BountyContribution> refundableContributions = new ArrayList<>();
+            List<Long> nonRefundableContributionIds = new ArrayList<>();
             for (BountyContribution contribution : contributions) {
                 if (!contribution.adminFunded() && !CONSOLE_UUID.equals(contribution.placerUuid())) {
                     if (!economy.deposit(contribution.placerUuid(), contribution.placerName(), contribution.amount())) {
@@ -214,25 +217,43 @@ public final class BountyService {
                         failed++;
                         continue;
                     }
-                    try {
-                        if (!repository.transitionContributionStatus(contribution.id(), ContributionStatus.ACTIVE, ContributionStatus.REFUNDED)) {
-                            compensateDeposit(contribution.placerUuid(), contribution.placerName(), contribution.amount(), "admin refund status mismatch rollback");
-                            failed++;
-                            continue;
-                        }
-                        refunded += contribution.amount();
-                        refundedContributions++;
-                        closed++;
-                    } catch (SQLException exception) {
-                        compensateDeposit(contribution.placerUuid(), contribution.placerName(), contribution.amount(), "admin refund rollback");
-                        throw exception;
-                    }
+                    refundableContributions.add(contribution);
+                    refunded += contribution.amount();
+                    refundedContributions++;
                 } else {
-                    if (repository.transitionContributionStatus(contribution.id(), ContributionStatus.ACTIVE, ContributionStatus.REFUNDED)) {
-                        closed++;
+                    nonRefundableContributionIds.add(contribution.id());
+                }
+            }
+
+            if (!refundableContributions.isEmpty()) {
+                List<Long> refundableIds = refundableContributions.stream()
+                    .map(BountyContribution::id)
+                    .toList();
+                try {
+                    int refundedRows = repository.transitionContributionStatuses(refundableIds, ContributionStatus.ACTIVE, ContributionStatus.REFUNDED);
+                    if (refundedRows != refundableIds.size()) {
+                        for (BountyContribution contribution : refundableContributions) {
+                            compensateDeposit(contribution.placerUuid(), contribution.placerName(), contribution.amount(), "admin refund batch rollback");
+                        }
+                        refunded -= refundableContributions.stream().mapToLong(BountyContribution::amount).sum();
+                        refundedContributions = 0;
+                        failed += refundableIds.size();
                     } else {
-                        failed++;
+                        closed += refundedRows;
                     }
+                } catch (SQLException exception) {
+                    for (BountyContribution contribution : refundableContributions) {
+                        compensateDeposit(contribution.placerUuid(), contribution.placerName(), contribution.amount(), "admin refund batch rollback");
+                    }
+                    throw exception;
+                }
+            }
+
+            if (!nonRefundableContributionIds.isEmpty()) {
+                int removedRows = repository.transitionContributionStatuses(nonRefundableContributionIds, ContributionStatus.ACTIVE, ContributionStatus.REFUNDED);
+                closed += removedRows;
+                if (removedRows != nonRefundableContributionIds.size()) {
+                    failed += nonRefundableContributionIds.size() - removedRows;
                 }
             }
             if (closed == 0) {

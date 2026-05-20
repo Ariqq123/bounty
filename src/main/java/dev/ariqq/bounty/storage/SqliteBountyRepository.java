@@ -296,6 +296,30 @@ public final class SqliteBountyRepository implements BountyRepository {
     }
 
     @Override
+    public synchronized int transitionContributionStatuses(List<Long> contributionIds, ContributionStatus fromStatus, ContributionStatus toStatus) throws SQLException {
+        if (contributionIds.isEmpty()) {
+            return 0;
+        }
+
+        boolean previousAutoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        try {
+            int updated = transitionContributionStatusesInternal(contributionIds, fromStatus, toStatus, Instant.now());
+            if (updated != contributionIds.size()) {
+                connection.rollback();
+                return updated;
+            }
+            connection.commit();
+            return updated;
+        } catch (SQLException exception) {
+            connection.rollback();
+            throw exception;
+        } finally {
+            connection.setAutoCommit(previousAutoCommit);
+        }
+    }
+
+    @Override
     public synchronized int updateTargetContributionsStatus(UUID targetUuid, ContributionStatus status) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
             UPDATE bounty_contributions

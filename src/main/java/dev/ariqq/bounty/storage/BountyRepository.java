@@ -33,6 +33,8 @@ public interface BountyRepository extends AutoCloseable {
 
     boolean transitionContributionStatus(long id, ContributionStatus fromStatus, ContributionStatus toStatus) throws SQLException;
 
+    int transitionContributionStatuses(List<Long> contributionIds, ContributionStatus fromStatus, ContributionStatus toStatus) throws SQLException;
+
     int updateTargetContributionsStatus(UUID targetUuid, ContributionStatus status) throws SQLException;
 
     int finalizeClaim(

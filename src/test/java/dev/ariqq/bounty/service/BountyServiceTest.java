@@ -290,7 +290,7 @@ class BountyServiceTest {
     }
 
     @Test
-    void adminRemoveReportsPartialFailuresAndLeavesContributionActive() {
+    void adminRemoveRollsBackBatchFailuresAndLeavesAllContributionsActive() {
         InMemoryRepository repository = new InMemoryRepository();
         repository.failNextTransition = true;
         FakeEconomy economy = new FakeEconomy();
@@ -304,12 +304,12 @@ class BountyServiceTest {
 
         ServiceResult removed = service.adminRemoveTarget(new KnownPlayer(target, "Target"));
 
-        Assertions.assertTrue(removed.success());
+        Assertions.assertFalse(removed.success());
         Assertions.assertEquals(
-            "Removed 1 non-refundable contribution(s) from Target. 1 contribution(s) could not be processed and remain active.",
+            "No non-refundable contribution could be removed. 2 contribution(s) remain active.",
             removed.message()
         );
-        Assertions.assertEquals(500L, repository.getUnsafeTotal(target));
+        Assertions.assertEquals(800L, repository.getUnsafeTotal(target));
     }
 
     @Test
@@ -697,6 +697,24 @@ class BountyServiceTest {
             }
             updateContributionStatus(id, toStatus);
             return true;
+        }
+
+        @Override
+        public int transitionContributionStatuses(List<Long> contributionIds, ContributionStatus fromStatus, ContributionStatus toStatus) {
+            if (contributionIds.isEmpty()) {
+                return 0;
+            }
+            List<Long> transitioned = new ArrayList<>();
+            for (Long contributionId : contributionIds) {
+                if (!transitionContributionStatus(contributionId, fromStatus, toStatus)) {
+                    for (Long transitionedId : transitioned) {
+                        transitionContributionStatus(transitionedId, toStatus, fromStatus);
+                    }
+                    return transitioned.size();
+                }
+                transitioned.add(contributionId);
+            }
+            return transitioned.size();
         }
 
         @Override
