@@ -97,12 +97,20 @@ public final class BountyGuiManager {
     }
 
     public void openMyBounties(Player player) {
-        BountyInventoryView holder = new BountyInventoryView(ViewType.MY_BOUNTIES, 1);
+        openMyBounties(player, 1);
+    }
+
+    public void openMyBounties(Player player, int requestedPage) {
+        List<BountyContribution> contributions = bountyService.getPlayerContributions(player.getUniqueId());
+        int maxPage = Math.max(1, (int) Math.ceil(contributions.size() / 45.0D));
+        int page = Math.max(1, Math.min(requestedPage, maxPage));
+        int start = (page - 1) * 45;
+
+        BountyInventoryView holder = new BountyInventoryView(ViewType.MY_BOUNTIES, page);
         Inventory inventory = Bukkit.createInventory(holder, 54, Component.text("My Bounties"));
         holder.setInventory(inventory);
-        List<BountyContribution> contributions = bountyService.getPlayerContributions(player.getUniqueId());
         int slot = 0;
-        for (BountyContribution contribution : contributions.stream().limit(45).toList()) {
+        for (BountyContribution contribution : contributions.stream().skip(start).limit(45).toList()) {
             inventory.setItem(slot++, item(
                 Material.NAME_TAG,
                 contribution.targetName() + " - " + MoneyFormatter.format(contribution.amount()),
@@ -111,7 +119,10 @@ public final class BountyGuiManager {
                     : "You do not have permission to cancel your bounty."
             ));
         }
-        inventory.setItem(49, item(Material.BARRIER, "Back", "Return to the main menu."));
+        if (slot == 0) {
+            inventory.setItem(22, item(Material.BARRIER, "No Active Bounties", "You do not have active bounty contributions on this page."));
+        }
+        applyNavigation(inventory, page, page > 1, start + 45 < contributions.size());
         player.openInventory(inventory);
     }
 
@@ -148,6 +159,14 @@ public final class BountyGuiManager {
             case ACTIVE_LIST -> handlePagedClick(player, title, holder.page(), ViewType.ACTIVE_LIST);
             case TOP_LIST -> handlePagedClick(player, title, holder.page(), ViewType.TOP_LIST);
             case MY_BOUNTIES -> {
+                if ("Next Page".equalsIgnoreCase(title)) {
+                    openMyBounties(player, holder.page() + 1);
+                    return;
+                }
+                if ("Previous Page".equalsIgnoreCase(title)) {
+                    openMyBounties(player, Math.max(1, holder.page() - 1));
+                    return;
+                }
                 if ("Back".equalsIgnoreCase(title)) {
                     openMain(player);
                 } else {
@@ -159,7 +178,7 @@ public final class BountyGuiManager {
                     bountyService.resolveKnownPlayer(targetName).ifPresent(target -> {
                         ServiceResult result = bountyService.cancelOwnBounty(player.getUniqueId(), player.getName(), target);
                         player.sendMessage(colored(result));
-                        openMyBounties(player);
+                        openMyBounties(player, holder.page());
                     });
                 }
             }
