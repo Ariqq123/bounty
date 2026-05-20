@@ -14,6 +14,7 @@ import dev.ariqq.bounty.service.VaultEconomyAdapter;
 import dev.ariqq.bounty.storage.BountyRepository;
 import dev.ariqq.bounty.storage.MysqlBountyRepository;
 import dev.ariqq.bounty.storage.SqliteBountyRepository;
+import dev.ariqq.bounty.util.Msg;
 import java.io.File;
 import java.sql.SQLException;
 import java.util.Objects;
@@ -90,6 +91,7 @@ public class BountyPlugin extends JavaPlugin {
     public void reloadBountyConfig() {
         reloadConfig();
         bountyConfig = BountyConfig.fromConfig(getConfig());
+        Msg.configure(bountyConfig.messagePrefix(), bountyConfig.beautifyMessages());
     }
 
     public BountyConfig getBountyConfig() {

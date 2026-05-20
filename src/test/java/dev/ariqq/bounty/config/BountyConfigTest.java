@@ -66,6 +66,8 @@ class BountyConfigTest {
 
         Assertions.assertEquals("sqlite", config.storageType());
         Assertions.assertFalse(config.useMysqlStorage());
+        Assertions.assertEquals("[Bounty] ", config.messagePrefix());
+        Assertions.assertTrue(config.beautifyMessages());
         Assertions.assertEquals("127.0.0.1", config.mysqlHost());
         Assertions.assertEquals(3306, config.mysqlPort());
         Assertions.assertEquals("bounty", config.mysqlDatabase());
@@ -81,6 +83,8 @@ class BountyConfigTest {
         configuration.set("storage.mysql.username", "bounty_user");
         configuration.set("storage.mysql.password", "secret");
         configuration.set("storage.mysql.use-ssl", true);
+        configuration.set("messages.prefix", "[Wanted] ");
+        configuration.set("messages.beautify", false);
 
         BountyConfig config = BountyConfig.fromConfig(configuration);
 
@@ -92,5 +96,7 @@ class BountyConfigTest {
         Assertions.assertEquals("bounty_user", config.mysqlUsername());
         Assertions.assertEquals("secret", config.mysqlPassword());
         Assertions.assertTrue(config.mysqlUseSsl());
+        Assertions.assertEquals("[Wanted] ", config.messagePrefix());
+        Assertions.assertFalse(config.beautifyMessages());
     }
 }

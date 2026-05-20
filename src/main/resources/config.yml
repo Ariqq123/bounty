@@ -10,6 +10,8 @@ gui:
   page-size: 28
 
 messages:
+  prefix: "[Bounty] "
+  beautify: true
   broadcast-place: true
   broadcast-claim: true
 
