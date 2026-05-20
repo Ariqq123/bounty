@@ -72,7 +72,7 @@ public final class BountyGuiManager {
             inventory,
             page,
             page > 1,
-            page * bountyService.config().guiPageSize() < totalTargets
+            hasNextPage(page, bountyService.config().guiPageSize(), totalTargets)
         );
         player.openInventory(inventory);
     }
@@ -91,7 +91,7 @@ public final class BountyGuiManager {
             inventory,
             page,
             page > 1,
-            page * bountyService.config().guiPageSize() < totalTargets
+            hasNextPage(page, bountyService.config().guiPageSize(), totalTargets)
         );
         player.openInventory(inventory);
     }
@@ -104,7 +104,7 @@ public final class BountyGuiManager {
         List<BountyContribution> contributions = bountyService.getPlayerContributions(player.getUniqueId());
         int maxPage = Math.max(1, (int) Math.ceil(contributions.size() / 45.0D));
         int page = Math.max(1, Math.min(requestedPage, maxPage));
-        int start = (page - 1) * 45;
+        long start = pageStart(page, 45);
 
         BountyInventoryView holder = new BountyInventoryView(ViewType.MY_BOUNTIES, page);
         Inventory inventory = Bukkit.createInventory(holder, 54, Component.text("My Bounties"));
@@ -122,7 +122,7 @@ public final class BountyGuiManager {
         if (slot == 0) {
             inventory.setItem(22, item(Material.BARRIER, "No Active Bounties", "You do not have active bounty contributions on this page."));
         }
-        applyNavigation(inventory, page, page > 1, start + 45 < contributions.size());
+        applyNavigation(inventory, page, page > 1, hasNextPage(page, 45, contributions.size()));
         player.openInventory(inventory);
     }
 
@@ -133,7 +133,7 @@ public final class BountyGuiManager {
         List<KnownPlayer> knownPlayers = bountyService.listKnownPlayers().stream()
             .filter(knownPlayer -> !knownPlayer.uuid().equals(player.getUniqueId()))
             .toList();
-        int start = Math.max(0, (page - 1) * 45);
+        long start = pageStart(page, 45);
         int slot = 0;
         for (KnownPlayer knownPlayer : knownPlayers.stream().skip(start).limit(45).toList()) {
             inventory.setItem(slot++, item(Material.PLAYER_HEAD, knownPlayer.name(), "Click to enter a bounty amount in chat."));
@@ -141,7 +141,7 @@ public final class BountyGuiManager {
         if (slot == 0) {
             inventory.setItem(22, item(Material.BARRIER, "No Available Targets", "No known players are available on this page."));
         }
-        applyNavigation(inventory, page, page > 1, start + 45 < knownPlayers.size());
+        applyNavigation(inventory, page, page > 1, hasNextPage(page, 45, knownPlayers.size()));
         player.openInventory(inventory);
     }
 
@@ -331,6 +331,14 @@ public final class BountyGuiManager {
 
     private boolean hasCancelPermission(Player player) {
         return player.hasPermission("bounty.cancel.own");
+    }
+
+    private boolean hasNextPage(int page, int pageSize, int totalItems) {
+        return ((long) page * pageSize) < totalItems;
+    }
+
+    private long pageStart(int page, int pageSize) {
+        return Math.max(0L, (long) (page - 1) * pageSize);
     }
 
     private record PendingAmountPrompt(KnownPlayer target, Instant createdAt) {
