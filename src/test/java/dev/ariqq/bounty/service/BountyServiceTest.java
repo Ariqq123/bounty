@@ -83,6 +83,27 @@ class BountyServiceTest {
     }
 
     @Test
+    void cancelClosesAllDuplicatePlayerContributionsForSameTarget() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID placer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        repository.insertRawActiveContribution(target, "Target", placer, "Hunter", 400L, false);
+        repository.insertRawActiveContribution(target, "Target", placer, "Hunter", 600L, false);
+
+        ServiceResult result = service.cancelOwnBounty(placer, "Hunter", new KnownPlayer(target, "Target"));
+
+        Assertions.assertTrue(result.success());
+        Assertions.assertEquals("Cancelled your bounty on Target. Refunded 800.", result.message());
+        Assertions.assertEquals(800D, economy.balance(placer));
+        Assertions.assertEquals(0L, repository.getUnsafeTotal(target));
+        Assertions.assertEquals(1, notifier.cancelEvents);
+    }
+
+    @Test
     void cancelFailedRefundKeepsContributionActive() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
@@ -136,6 +157,25 @@ class BountyServiceTest {
         Assertions.assertFalse(result.success());
         Assertions.assertEquals(4_000D, economy.balance(placer));
         Assertions.assertEquals(1, repository.getUnsafeByTarget(target).size());
+    }
+
+    @Test
+    void cancelDuplicateStatusMismatchRollsBackAllRefunds() {
+        InMemoryRepository repository = new InMemoryRepository();
+        repository.failNextTransition = true;
+        FakeEconomy economy = new FakeEconomy();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, new FakeNotifier(), BountyServiceTest::testConfig);
+        UUID placer = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+
+        repository.insertRawActiveContribution(target, "Target", placer, "Hunter", 400L, false);
+        repository.insertRawActiveContribution(target, "Target", placer, "Hunter", 600L, false);
+
+        ServiceResult result = service.cancelOwnBounty(placer, "Hunter", new KnownPlayer(target, "Target"));
+
+        Assertions.assertFalse(result.success());
+        Assertions.assertEquals(0D, economy.balance(placer));
+        Assertions.assertEquals(1_000L, repository.getUnsafeTotal(target));
     }
 
     @Test
@@ -1022,6 +1062,14 @@ class BountyServiceTest {
                 .filter(value -> value.placerUuid().equals(placerUuid))
                 .filter(value -> value.status() == ContributionStatus.ACTIVE)
                 .toList();
+        }
+
+        void insertRawActiveContribution(UUID targetUuid, String targetName, UUID placerUuid, String placerName, long amount, boolean adminFunded) {
+            Instant now = Instant.now();
+            contributions.put(nextId, new BountyContribution(
+                nextId++, targetUuid, targetName, placerUuid, placerName, amount,
+                adminFunded, ContributionStatus.ACTIVE, now, now
+            ));
         }
     }
 }

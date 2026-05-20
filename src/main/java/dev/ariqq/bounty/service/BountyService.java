@@ -128,8 +128,12 @@ public final class BountyService {
 
     public ServiceResult cancelOwnBounty(UUID placerUuid, String placerName, KnownPlayer target) {
         try {
-            Optional<BountyContribution> contribution = repository.getActiveContribution(target.uuid(), placerUuid);
-            if (contribution.isEmpty()) {
+            List<BountyContribution> targetContributions = repository.getActiveContributionsByTarget(target.uuid());
+            List<BountyContribution> refundableContributions = targetContributions.stream()
+                .filter(active -> active.placerUuid().equals(placerUuid))
+                .filter(active -> !active.adminFunded())
+                .toList();
+            if (refundableContributions.isEmpty()) {
                 boolean hasAdminFundedAttribution = repository.getActiveContributionsByTarget(target.uuid()).stream()
                     .anyMatch(active -> active.placerUuid().equals(placerUuid) && active.adminFunded());
                 if (hasAdminFundedAttribution) {
@@ -138,35 +142,60 @@ public final class BountyService {
                 return ServiceResult.failure("You do not have an active bounty on " + target.name() + ".");
             }
 
-            BountyContribution active = contribution.get();
-            if (active.adminFunded()) {
-                return ServiceResult.failure("Admin-funded bounty contributions cannot be cancelled by players.");
+            List<RefundCancellation> refundCancellations = new ArrayList<>();
+            long totalRefund = 0L;
+            for (BountyContribution active : refundableContributions) {
+                if (!isSafeEconomyAmount(active.amount())) {
+                    logger.warning("Unsupported bounty amount on contribution " + active.id() + ": " + active.amount());
+                    return ServiceResult.failure("This bounty amount is not supported by the economy and cannot be refunded safely.");
+                }
+                long refund = config().refundAmount(active.amount());
+                if (!isSafeEconomyAmount(refund)) {
+                    logger.warning("Unsupported refund amount on contribution " + active.id() + ": " + refund);
+                    return ServiceResult.failure("This bounty amount is not supported by the economy and cannot be refunded safely.");
+                }
+                try {
+                    totalRefund = Math.addExact(totalRefund, refund);
+                } catch (ArithmeticException exception) {
+                    logger.warning("Refund total overflow on target " + target.uuid() + " for placer " + placerUuid + ".");
+                    return ServiceResult.failure("This bounty amount is not supported by the economy and cannot be refunded safely.");
+                }
+                refundCancellations.add(new RefundCancellation(active.id(), refund));
             }
-            if (!isSafeEconomyAmount(active.amount())) {
-                logger.warning("Unsupported bounty amount on contribution " + active.id() + ": " + active.amount());
-                return ServiceResult.failure("This bounty amount is not supported by the economy and cannot be refunded safely.");
+
+            List<RefundCancellation> depositedRefunds = new ArrayList<>();
+            for (RefundCancellation cancellation : refundCancellations) {
+                if (!economy.deposit(placerUuid, placerName, cancellation.refundAmount())) {
+                    for (RefundCancellation deposited : depositedRefunds) {
+                        compensateDeposit(placerUuid, placerName, deposited.refundAmount(), "cancelled bounty refund rollback");
+                    }
+                    logger.warning("Refund deposit failed for " + placerName + " on bounty " + cancellation.contributionId());
+                    return ServiceResult.failure("Failed to refund your cancelled bounty.");
+                }
+                depositedRefunds.add(cancellation);
             }
-            long refund = config().refundAmount(active.amount());
-            if (!isSafeEconomyAmount(refund)) {
-                logger.warning("Unsupported refund amount on contribution " + active.id() + ": " + refund);
-                return ServiceResult.failure("This bounty amount is not supported by the economy and cannot be refunded safely.");
-            }
-            if (!economy.deposit(placerUuid, placerName, refund)) {
-                logger.warning("Refund deposit failed for " + placerName + " on bounty " + active.id());
-                return ServiceResult.failure("Failed to refund your cancelled bounty.");
-            }
+
             try {
-                if (!repository.transitionContributionStatus(active.id(), ContributionStatus.ACTIVE, ContributionStatus.CANCELLED)) {
-                    compensateDeposit(placerUuid, placerName, refund, "cancelled bounty status mismatch rollback");
+                int cancelled = repository.transitionContributionStatuses(
+                    refundCancellations.stream().map(RefundCancellation::contributionId).toList(),
+                    ContributionStatus.ACTIVE,
+                    ContributionStatus.CANCELLED
+                );
+                if (cancelled != refundCancellations.size()) {
+                    for (RefundCancellation deposited : depositedRefunds) {
+                        compensateDeposit(placerUuid, placerName, deposited.refundAmount(), "cancelled bounty status mismatch rollback");
+                    }
                     return ServiceResult.failure("Your bounty changed before it could be cancelled.");
                 }
             } catch (SQLException exception) {
-                compensateDeposit(placerUuid, placerName, refund, "cancelled bounty rollback");
+                for (RefundCancellation deposited : depositedRefunds) {
+                    compensateDeposit(placerUuid, placerName, deposited.refundAmount(), "cancelled bounty rollback");
+                }
                 throw exception;
             }
 
-            notifier.notifyBountyCancelled(placerName, target.name(), refund);
-            return ServiceResult.success("Cancelled your bounty on " + target.name() + ". Refunded " + MoneyFormatter.format(refund) + ".");
+            notifier.notifyBountyCancelled(placerName, target.name(), totalRefund);
+            return ServiceResult.success("Cancelled your bounty on " + target.name() + ". Refunded " + MoneyFormatter.format(totalRefund) + ".");
         } catch (SQLException exception) {
             logger.warning("Failed to cancel bounty: " + exception.getMessage());
             return ServiceResult.failure("Failed to cancel the bounty.");
@@ -596,5 +625,8 @@ public final class BountyService {
 
     private boolean isSafeEconomyAmount(long amount) {
         return amount >= 0L && amount <= BountyConfig.MAX_SAFE_ECONOMY_AMOUNT;
+    }
+
+    private record RefundCancellation(long contributionId, long refundAmount) {
     }
 }
