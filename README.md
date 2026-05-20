@@ -176,7 +176,7 @@ Build with Gradle:
 The compiled jar will be created in:
 
 ```text
-build/libs/Bounty-1.1.0.jar
+build/libs/Bounty-1.5.0.jar
 ```
 
 ## Project Layout
@@ -188,4 +188,4 @@ build/libs/Bounty-1.1.0.jar
 
 ## Current Scope
 
-This version focuses on single-server Paper deployment with local SQLite storage. It does not currently include cross-server sync, MySQL support, Discord bot commands, or alt-account detection.
+This version is aimed at single-server Paper deployment with local SQLite storage, Vault economy payouts, player GUI flows, admin moderation tools, and Discord webhook embeds. It does not currently include cross-server sync, external SQL backends, Discord bot commands, seasonal bounty systems, or stronger alt-account detection beyond the built-in killer-target cooldown.
