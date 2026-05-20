@@ -209,7 +209,7 @@ public final class BountyService {
             int refundedContributions = 0;
             int failed = 0;
             List<BountyContribution> refundableContributions = new ArrayList<>();
-            List<Long> nonRefundableContributionIds = new ArrayList<>();
+            List<Long> closableContributionIds = new ArrayList<>();
             for (BountyContribution contribution : contributions) {
                 if (!contribution.adminFunded() && !CONSOLE_UUID.equals(contribution.placerUuid())) {
                     if (!economy.deposit(contribution.placerUuid(), contribution.placerName(), contribution.amount())) {
@@ -218,42 +218,32 @@ public final class BountyService {
                         continue;
                     }
                     refundableContributions.add(contribution);
+                    closableContributionIds.add(contribution.id());
                     refunded += contribution.amount();
                     refundedContributions++;
                 } else {
-                    nonRefundableContributionIds.add(contribution.id());
+                    closableContributionIds.add(contribution.id());
                 }
             }
 
-            if (!refundableContributions.isEmpty()) {
-                List<Long> refundableIds = refundableContributions.stream()
-                    .map(BountyContribution::id)
-                    .toList();
+            if (!closableContributionIds.isEmpty()) {
                 try {
-                    int refundedRows = repository.transitionContributionStatuses(refundableIds, ContributionStatus.ACTIVE, ContributionStatus.REFUNDED);
-                    if (refundedRows != refundableIds.size()) {
+                    int closedRows = repository.transitionContributionStatuses(closableContributionIds, ContributionStatus.ACTIVE, ContributionStatus.REFUNDED);
+                    if (closedRows != closableContributionIds.size()) {
                         for (BountyContribution contribution : refundableContributions) {
                             compensateDeposit(contribution.placerUuid(), contribution.placerName(), contribution.amount(), "admin refund batch rollback");
                         }
                         refunded -= refundableContributions.stream().mapToLong(BountyContribution::amount).sum();
                         refundedContributions = 0;
-                        failed += refundableIds.size();
+                        failed += closableContributionIds.size();
                     } else {
-                        closed += refundedRows;
+                        closed += closedRows;
                     }
                 } catch (SQLException exception) {
                     for (BountyContribution contribution : refundableContributions) {
                         compensateDeposit(contribution.placerUuid(), contribution.placerName(), contribution.amount(), "admin refund batch rollback");
                     }
                     throw exception;
-                }
-            }
-
-            if (!nonRefundableContributionIds.isEmpty()) {
-                int removedRows = repository.transitionContributionStatuses(nonRefundableContributionIds, ContributionStatus.ACTIVE, ContributionStatus.REFUNDED);
-                closed += removedRows;
-                if (removedRows != nonRefundableContributionIds.size()) {
-                    failed += nonRefundableContributionIds.size() - removedRows;
                 }
             }
             if (closed == 0) {

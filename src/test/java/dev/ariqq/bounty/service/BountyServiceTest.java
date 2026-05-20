@@ -339,6 +339,31 @@ class BountyServiceTest {
     }
 
     @Test
+    void adminRefundRollsBackDepositsWhenCloseBatchFails() {
+        InMemoryRepository repository = new InMemoryRepository();
+        repository.failNextTransition = true;
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+        UUID placerOne = UUID.randomUUID();
+        UUID placerTwo = UUID.randomUUID();
+
+        economy.setBalance(placerOne, 5_000);
+        economy.setBalance(placerTwo, 5_000);
+        service.placeBounty(placerOne, "HunterOne", new KnownPlayer(target, "Target"), 300L);
+        service.placeBounty(placerTwo, "HunterTwo", new KnownPlayer(target, "Target"), 500L);
+
+        ServiceResult refunded = service.adminRefundTarget(new KnownPlayer(target, "Target"), null);
+
+        Assertions.assertFalse(refunded.success());
+        Assertions.assertEquals("No contribution could be processed. 2 contribution(s) remain active.", refunded.message());
+        Assertions.assertEquals(4_700D, economy.balance(placerOne));
+        Assertions.assertEquals(4_500D, economy.balance(placerTwo));
+        Assertions.assertEquals(800L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
     void playerContributionsExcludeAdminFundedAttributions() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();
