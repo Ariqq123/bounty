@@ -231,14 +231,14 @@ public final class BountyGuiManager {
         }
         if (Duration.between(prompt.createdAt(), Instant.now()).toMinutes() >= 3) {
             prompts.remove(player.getUniqueId());
-            player.sendMessage(Component.text("Bounty input expired.", NamedTextColor.RED));
+            sendPromptMessage(player, Component.text("Bounty input expired.", NamedTextColor.RED));
             return true;
         }
 
         String plain = PLAIN.serialize(message).trim();
         if (plain.equalsIgnoreCase("cancel")) {
             prompts.remove(player.getUniqueId());
-            player.sendMessage(Component.text("Bounty placement cancelled.", NamedTextColor.RED));
+            sendPromptMessage(player, Component.text("Bounty placement cancelled.", NamedTextColor.RED));
             return true;
         }
 
@@ -246,7 +246,7 @@ public final class BountyGuiManager {
         try {
             amount = Long.parseLong(plain);
         } catch (NumberFormatException exception) {
-            player.sendMessage(Component.text("Please enter a whole number, or type cancel.", NamedTextColor.RED));
+            sendPromptMessage(player, Component.text("Please enter a whole number, or type cancel.", NamedTextColor.RED));
             return true;
         }
 
@@ -346,6 +346,18 @@ public final class BountyGuiManager {
 
     private Component colored(ServiceResult result) {
         return Component.text(result.message(), result.success() ? NamedTextColor.GREEN : NamedTextColor.RED);
+    }
+
+    private void sendPromptMessage(Player player, Component message) {
+        if (Bukkit.isPrimaryThread()) {
+            player.sendMessage(message);
+            return;
+        }
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline() && player.isValid()) {
+                player.sendMessage(message);
+            }
+        });
     }
 
     private boolean hasPlacePermission(Player player) {
