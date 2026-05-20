@@ -251,6 +251,32 @@ class BountyServiceTest {
     }
 
     @Test
+    void adminRefundReportsPartialFailuresAndLeavesUnprocessedContributionActive() {
+        InMemoryRepository repository = new InMemoryRepository();
+        FakeEconomy economy = new FakeEconomy();
+        FakeNotifier notifier = new FakeNotifier();
+        BountyService service = new BountyService(null, Logger.getLogger("test"), repository, economy, notifier, BountyServiceTest::testConfig);
+        UUID target = UUID.randomUUID();
+        UUID placerOne = UUID.randomUUID();
+        UUID placerTwo = UUID.randomUUID();
+
+        economy.setBalance(placerOne, 5_000);
+        economy.setBalance(placerTwo, 5_000);
+        service.placeBounty(placerOne, "HunterOne", new KnownPlayer(target, "Target"), 300L);
+        service.placeBounty(placerTwo, "HunterTwo", new KnownPlayer(target, "Target"), 500L);
+        economy.failNextDepositFor(placerOne);
+
+        ServiceResult refunded = service.adminRefundTarget(new KnownPlayer(target, "Target"), null);
+
+        Assertions.assertTrue(refunded.success());
+        Assertions.assertEquals(
+            "Closed 1 contribution(s). Refunded 500 across 1 player contribution(s). 1 contribution(s) could not be processed and remain active.",
+            refunded.message()
+        );
+        Assertions.assertEquals(300L, repository.getUnsafeTotal(target));
+    }
+
+    @Test
     void playerContributionsExcludeAdminFundedAttributions() {
         InMemoryRepository repository = new InMemoryRepository();
         FakeEconomy economy = new FakeEconomy();

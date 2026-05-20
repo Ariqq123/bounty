@@ -179,15 +179,18 @@ public final class BountyService {
             long refunded = 0L;
             int closed = 0;
             int refundedContributions = 0;
+            int failed = 0;
             for (BountyContribution contribution : contributions) {
                 if (!contribution.adminFunded() && !CONSOLE_UUID.equals(contribution.placerUuid())) {
                     if (!economy.deposit(contribution.placerUuid(), contribution.placerName(), contribution.amount())) {
                         logger.warning("Refund deposit failed for " + contribution.placerName() + " on bounty " + contribution.id());
+                        failed++;
                         continue;
                     }
                     try {
                         if (!repository.transitionContributionStatus(contribution.id(), ContributionStatus.ACTIVE, ContributionStatus.REFUNDED)) {
                             compensateDeposit(contribution.placerUuid(), contribution.placerName(), contribution.amount(), "admin refund status mismatch rollback");
+                            failed++;
                             continue;
                         }
                         refunded += contribution.amount();
@@ -200,22 +203,31 @@ public final class BountyService {
                 } else {
                     if (repository.transitionContributionStatus(contribution.id(), ContributionStatus.ACTIVE, ContributionStatus.REFUNDED)) {
                         closed++;
+                    } else {
+                        failed++;
                     }
                 }
             }
             if (closed == 0) {
+                if (failed > 0) {
+                    return ServiceResult.failure("No contribution could be processed. " + failed + " contribution(s) remain active.");
+                }
                 return ServiceResult.failure("No contribution could be refunded.");
             }
             notifier.notifyAdminRefund(target.name(), refunded, closed);
             if (refundedContributions == 0) {
-                return ServiceResult.success("Closed " + closed + " contribution(s). No player funds were refunded.");
+                return partialAwareSuccess(
+                    "Closed " + closed + " contribution(s). No player funds were refunded.",
+                    failed
+                );
             }
-            return ServiceResult.success(
+            return partialAwareSuccess(
                 "Closed " + closed + " contribution(s). Refunded "
                     + MoneyFormatter.format(refunded)
                     + " across "
                     + refundedContributions
-                    + " player contribution(s)."
+                    + " player contribution(s).",
+                failed
             );
         } catch (SQLException exception) {
             logger.warning("Failed to refund bounty: " + exception.getMessage());
@@ -473,5 +485,14 @@ public final class BountyService {
         if (!economy.withdraw(playerUuid, playerName, amount)) {
             logger.severe("Failed to compensate " + context + " for " + playerName + " amount=" + amount + ".");
         }
+    }
+
+    private ServiceResult partialAwareSuccess(String baseMessage, int failedContributions) {
+        if (failedContributions <= 0) {
+            return ServiceResult.success(baseMessage);
+        }
+        return ServiceResult.success(
+            baseMessage + " " + failedContributions + " contribution(s) could not be processed and remain active."
+        );
     }
 }
