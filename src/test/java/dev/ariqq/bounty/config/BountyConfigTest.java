@@ -59,4 +59,38 @@ class BountyConfigTest {
 
         Assertions.assertEquals(2_972_375_754_064_527L, refund);
     }
+
+    @Test
+    void fromConfigDefaultsToSqliteStorage() {
+        BountyConfig config = BountyConfig.fromConfig(new YamlConfiguration());
+
+        Assertions.assertEquals("sqlite", config.storageType());
+        Assertions.assertFalse(config.useMysqlStorage());
+        Assertions.assertEquals("127.0.0.1", config.mysqlHost());
+        Assertions.assertEquals(3306, config.mysqlPort());
+        Assertions.assertEquals("bounty", config.mysqlDatabase());
+    }
+
+    @Test
+    void fromConfigReadsMysqlStorageSettings() {
+        YamlConfiguration configuration = new YamlConfiguration();
+        configuration.set("storage.type", "mysql");
+        configuration.set("storage.mysql.host", "db.example.com");
+        configuration.set("storage.mysql.port", 3307);
+        configuration.set("storage.mysql.database", "bounty_live");
+        configuration.set("storage.mysql.username", "bounty_user");
+        configuration.set("storage.mysql.password", "secret");
+        configuration.set("storage.mysql.use-ssl", true);
+
+        BountyConfig config = BountyConfig.fromConfig(configuration);
+
+        Assertions.assertTrue(config.useMysqlStorage());
+        Assertions.assertEquals("mysql", config.storageType());
+        Assertions.assertEquals("db.example.com", config.mysqlHost());
+        Assertions.assertEquals(3307, config.mysqlPort());
+        Assertions.assertEquals("bounty_live", config.mysqlDatabase());
+        Assertions.assertEquals("bounty_user", config.mysqlUsername());
+        Assertions.assertEquals("secret", config.mysqlPassword());
+        Assertions.assertTrue(config.mysqlUseSsl());
+    }
 }

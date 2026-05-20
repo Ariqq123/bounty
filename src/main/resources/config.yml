@@ -13,6 +13,16 @@ messages:
   broadcast-place: true
   broadcast-claim: true
 
+storage:
+  type: "sqlite" # sqlite or mysql
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    database: "bounty"
+    username: "root"
+    password: ""
+    use-ssl: false
+
 discord:
   enabled: false
   webhook-url: ""

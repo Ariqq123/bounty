@@ -23,7 +23,14 @@ public record BountyConfig(
     boolean discordNotifyPlace,
     boolean discordNotifyClaim,
     boolean discordNotifyCancel,
-    boolean discordNotifyAdmin
+    boolean discordNotifyAdmin,
+    String storageType,
+    String mysqlHost,
+    int mysqlPort,
+    String mysqlDatabase,
+    String mysqlUsername,
+    String mysqlPassword,
+    boolean mysqlUseSsl
 ) {
     public static final long MAX_SAFE_ECONOMY_AMOUNT = 9_007_199_254_740_991L;
 
@@ -35,6 +42,8 @@ public record BountyConfig(
             : Math.min(MAX_SAFE_ECONOMY_AMOUNT, Math.max(minAmount, configuredMaxAmount));
         int refundPercent = clamp(config.getInt("bounty.cancel-refund-percent", 80), 0, 100);
         int guiPageSize = clamp(config.getInt("gui.page-size", 28), 9, 45);
+        String storageType = normalizeStorageType(config.getString("storage.type", "sqlite"));
+
         return new BountyConfig(
             minAmount,
             maxAmount,
@@ -56,12 +65,30 @@ public record BountyConfig(
             config.getBoolean("discord.events.place", true),
             config.getBoolean("discord.events.claim", true),
             config.getBoolean("discord.events.cancel", true),
-            config.getBoolean("discord.events.admin", true)
+            config.getBoolean("discord.events.admin", true),
+            storageType,
+            config.getString("storage.mysql.host", "127.0.0.1"),
+            config.getInt("storage.mysql.port", 3306),
+            config.getString("storage.mysql.database", "bounty"),
+            config.getString("storage.mysql.username", "root"),
+            config.getString("storage.mysql.password", ""),
+            config.getBoolean("storage.mysql.use-ssl", false)
         );
     }
 
     public long refundAmount(long originalAmount) {
         return ((originalAmount * cancelRefundPercent) + 50L) / 100L;
+    }
+
+    public boolean useMysqlStorage() {
+        return "mysql".equalsIgnoreCase(storageType);
+    }
+
+    private static String normalizeStorageType(String input) {
+        if (input == null || input.isBlank()) {
+            return "sqlite";
+        }
+        return "mysql".equalsIgnoreCase(input.trim()) ? "mysql" : "sqlite";
     }
 
     private static int clamp(int value, int min, int max) {

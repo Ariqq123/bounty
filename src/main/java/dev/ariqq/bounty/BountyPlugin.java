@@ -12,6 +12,7 @@ import dev.ariqq.bounty.service.BountyService;
 import dev.ariqq.bounty.service.EconomyAdapter;
 import dev.ariqq.bounty.service.VaultEconomyAdapter;
 import dev.ariqq.bounty.storage.BountyRepository;
+import dev.ariqq.bounty.storage.MysqlBountyRepository;
 import dev.ariqq.bounty.storage.SqliteBountyRepository;
 import java.io.File;
 import java.sql.SQLException;
@@ -42,10 +43,23 @@ public class BountyPlugin extends JavaPlugin {
         }
 
         try {
-            File dataFile = new File(getDataFolder(), "bounty.db");
-            repository = new SqliteBountyRepository(dataFile.toPath());
+            if (bountyConfig.useMysqlStorage()) {
+                repository = new MysqlBountyRepository(
+                    bountyConfig.mysqlHost(),
+                    bountyConfig.mysqlPort(),
+                    bountyConfig.mysqlDatabase(),
+                    bountyConfig.mysqlUsername(),
+                    bountyConfig.mysqlPassword(),
+                    bountyConfig.mysqlUseSsl()
+                );
+                getLogger().info("Using MySQL storage: " + bountyConfig.mysqlHost() + ":" + bountyConfig.mysqlPort() + "/" + bountyConfig.mysqlDatabase());
+            } else {
+                File dataFile = new File(getDataFolder(), "bounty.db");
+                repository = new SqliteBountyRepository(dataFile.toPath());
+                getLogger().info("Using SQLite storage: " + dataFile.getAbsolutePath());
+            }
         } catch (SQLException exception) {
-            getLogger().severe("Failed to initialize SQLite storage: " + exception.getMessage());
+            getLogger().severe("Failed to initialize storage backend: " + exception.getMessage());
             Bukkit.getPluginManager().disablePlugin(this);
             return;
         }

@@ -737,23 +737,23 @@ class BountyServiceTest {
     }
 
     private static BountyConfig testConfig() {
-        return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "https://example.test/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
+        return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "https://example.test/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true, "sqlite", "127.0.0.1", 3306, "bounty", "root", "", false);
     }
 
     private static BountyConfig limitedConfig() {
-        return new BountyConfig(100, 1_000, 80, 3600, 28, false, false, true, "https://example.test/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
+        return new BountyConfig(100, 1_000, 80, 3600, 28, false, false, true, "https://example.test/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true, "sqlite", "127.0.0.1", 3306, "bounty", "root", "", false);
     }
 
     private static BountyConfig disabledDiscordConfig() {
-        return new BountyConfig(100, 0, 80, 3600, 28, false, false, false, "", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
+        return new BountyConfig(100, 0, 80, 3600, 28, false, false, false, "", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true, "sqlite", "127.0.0.1", 3306, "bounty", "root", "", false);
     }
 
     private static BountyConfig invalidDiscordConfig() {
-        return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "://bad-url", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
+        return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "://bad-url", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true, "sqlite", "127.0.0.1", 3306, "bounty", "root", "", false);
     }
 
     private static BountyConfig relativeDiscordConfig() {
-        return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "discord/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true);
+        return new BountyConfig(100, 0, 80, 3600, 28, false, false, true, "discord/webhook", "Bounty", "", "Bounty", true, 0xF1C40F, 0x2ECC71, 0xE74C3C, 0x3498DB, true, true, true, true, "sqlite", "127.0.0.1", 3306, "bounty", "root", "", false);
     }
 
     private static final class FakeNotifier implements BountyNotifier {
