@@ -75,37 +75,24 @@ public final class MysqlBountyRepository implements BountyRepository {
             ensureIndex(statement, "idx_bounty_contributions_placer_status", "bounty_contributions", "placer_uuid, status");
             ensureIndex(statement, "idx_bounty_contributions_status", "bounty_contributions", "status");
             ensureIndex(statement, "idx_bounty_claims_target", "bounty_claims", "target_uuid");
+            ensureUniqueIndex(statement, "uq_bounty_active_contribution", "bounty_contributions", "target_uuid, placer_uuid, admin_funded, status");
         }
     }
 
     @Override
-    public synchronized void upsertActiveContribution(UUID targetUuid, String targetName, UUID placerUuid, String placerName, long amount, boolean adminFunded)
+    public void upsertActiveContribution(UUID targetUuid, String targetName, UUID placerUuid, String placerName, long amount, boolean adminFunded)
         throws SQLException {
         Instant now = Instant.now();
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement("""
-                 UPDATE bounty_contributions
-                 SET amount = amount + ?, target_name = ?, placer_name = ?, updated_at = ?
-                 WHERE target_uuid = ? AND placer_uuid = ? AND admin_funded = ? AND status = ?
-                 """)) {
-            statement.setLong(1, amount);
-            statement.setString(2, targetName);
-            statement.setString(3, placerName);
-            statement.setString(4, now.toString());
-            statement.setString(5, targetUuid.toString());
-            statement.setString(6, placerUuid.toString());
-            statement.setInt(7, adminFunded ? 1 : 0);
-            statement.setString(8, ContributionStatus.ACTIVE.name());
-            if (statement.executeUpdate() > 0) {
-                return;
-            }
-        }
-
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  INSERT INTO bounty_contributions
                  (target_uuid, target_name, placer_uuid, placer_name, amount, admin_funded, status, created_at, updated_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                     amount = amount + VALUES(amount),
+                     target_name = VALUES(target_name),
+                     placer_name = VALUES(placer_name),
+                     updated_at = VALUES(updated_at)
                  """)) {
             statement.setString(1, targetUuid.toString());
             statement.setString(2, targetName);
@@ -121,7 +108,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized Optional<BountyContribution> getActiveContribution(UUID targetUuid, UUID placerUuid) throws SQLException {
+    public Optional<BountyContribution> getActiveContribution(UUID targetUuid, UUID placerUuid) throws SQLException {
         return getActiveContributionInternal(targetUuid, placerUuid, false);
     }
 
@@ -143,7 +130,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized List<BountyContribution> getActiveContributionsByTarget(UUID targetUuid) throws SQLException {
+    public List<BountyContribution> getActiveContributionsByTarget(UUID targetUuid) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  SELECT * FROM bounty_contributions
@@ -159,7 +146,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized List<BountyContribution> getActiveContributionsByPlacer(UUID placerUuid) throws SQLException {
+    public List<BountyContribution> getActiveContributionsByPlacer(UUID placerUuid) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  SELECT * FROM bounty_contributions
@@ -175,7 +162,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized long getActiveTotalForTarget(UUID targetUuid) throws SQLException {
+    public long getActiveTotalForTarget(UUID targetUuid) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  SELECT COALESCE(SUM(amount), 0) AS total
@@ -191,7 +178,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized Optional<BountyTargetSummary> getTargetSummary(UUID targetUuid) throws SQLException {
+    public Optional<BountyTargetSummary> getTargetSummary(UUID targetUuid) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  SELECT
@@ -222,7 +209,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized int countActiveTargets() throws SQLException {
+    public int countActiveTargets() throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  SELECT COUNT(*) AS total
@@ -241,7 +228,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized List<BountyTargetSummary> listActiveTargetSummaries(int limit, int offset) throws SQLException {
+    public List<BountyTargetSummary> listActiveTargetSummaries(int limit, int offset) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  SELECT
@@ -275,12 +262,12 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized List<BountyTargetSummary> listTopTargetSummaries(int limit) throws SQLException {
+    public List<BountyTargetSummary> listTopTargetSummaries(int limit) throws SQLException {
         return listActiveTargetSummaries(limit, 0);
     }
 
     @Override
-    public synchronized void updateContributionStatus(long id, ContributionStatus status) throws SQLException {
+    public void updateContributionStatus(long id, ContributionStatus status) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  UPDATE bounty_contributions
@@ -295,7 +282,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized boolean transitionContributionStatus(long id, ContributionStatus fromStatus, ContributionStatus toStatus) throws SQLException {
+    public boolean transitionContributionStatus(long id, ContributionStatus fromStatus, ContributionStatus toStatus) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  UPDATE bounty_contributions
@@ -311,7 +298,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized int transitionContributionStatuses(List<Long> contributionIds, ContributionStatus fromStatus, ContributionStatus toStatus) throws SQLException {
+    public int transitionContributionStatuses(List<Long> contributionIds, ContributionStatus fromStatus, ContributionStatus toStatus) throws SQLException {
         if (contributionIds.isEmpty()) {
             return 0;
         }
@@ -337,7 +324,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized int updateTargetContributionsStatus(UUID targetUuid, ContributionStatus status) throws SQLException {
+    public int updateTargetContributionsStatus(UUID targetUuid, ContributionStatus status) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  UPDATE bounty_contributions
@@ -353,7 +340,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized int finalizeClaim(
+    public int finalizeClaim(
         List<Long> contributionIds,
         UUID targetUuid,
         String targetName,
@@ -391,7 +378,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized void recordClaim(UUID targetUuid, String targetName, UUID killerUuid, String killerName, long totalAmount, int sourceCount)
+    public void recordClaim(UUID targetUuid, String targetName, UUID killerUuid, String killerName, long totalAmount, int sourceCount)
         throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             insertClaimInternal(connection, targetUuid, targetName, killerUuid, killerName, totalAmount, sourceCount, Instant.now());
@@ -399,7 +386,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized List<BountyClaim> getClaimHistory(UUID targetUuid, int limit) throws SQLException {
+    public List<BountyClaim> getClaimHistory(UUID targetUuid, int limit) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  SELECT * FROM bounty_claims
@@ -429,14 +416,14 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized void upsertAbuseLock(UUID killerUuid, UUID targetUuid, Instant claimedAt) throws SQLException {
+    public void upsertAbuseLock(UUID killerUuid, UUID targetUuid, Instant claimedAt) throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             upsertAbuseLockInternal(connection, killerUuid, targetUuid, claimedAt);
         }
     }
 
     @Override
-    public synchronized Optional<Instant> getLastClaimForPair(UUID killerUuid, UUID targetUuid) throws SQLException {
+    public Optional<Instant> getLastClaimForPair(UUID killerUuid, UUID targetUuid) throws SQLException {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                  SELECT claimed_at FROM abuse_claim_locks
@@ -452,7 +439,7 @@ public final class MysqlBountyRepository implements BountyRepository {
     }
 
     @Override
-    public synchronized void close() {
+    public void close() {
         dataSource.close();
     }
 
@@ -566,6 +553,17 @@ public final class MysqlBountyRepository implements BountyRepository {
     private void ensureIndex(Statement statement, String indexName, String tableName, String columns) throws SQLException {
         try {
             statement.executeUpdate("CREATE INDEX " + indexName + " ON " + tableName + "(" + columns + ")");
+        } catch (SQLException exception) {
+            // Ignore Duplicate Key Name (code 1061)
+            if (exception.getErrorCode() != 1061 && (exception.getMessage() == null || !exception.getMessage().toLowerCase(java.util.Locale.ROOT).contains("duplicate key"))) {
+                throw exception;
+            }
+        }
+    }
+
+    private void ensureUniqueIndex(Statement statement, String indexName, String tableName, String columns) throws SQLException {
+        try {
+            statement.executeUpdate("CREATE UNIQUE INDEX " + indexName + " ON " + tableName + "(" + columns + ")");
         } catch (SQLException exception) {
             // Ignore Duplicate Key Name (code 1061)
             if (exception.getErrorCode() != 1061 && (exception.getMessage() == null || !exception.getMessage().toLowerCase(java.util.Locale.ROOT).contains("duplicate key"))) {
