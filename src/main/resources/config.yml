@@ -1,23 +1,53 @@
+# ==============================================
+# BOUNTY CONFIGURATION
+# ==============================================
+# Catatan:
+# - Ubah nilai sesuai kebutuhan server kamu.
+# - Setelah ubah config: restart server atau jalankan /bounty reload.
+
 bounty:
+  # Nominal minimum saat player pasang bounty.
   min-amount: 100
+
+  # Nominal maksimum bounty sekali pasang.
+  # 0 = tanpa batas (tetap dibatasi oleh limit aman plugin/economy).
   max-amount: 0
+
+  # Persentase uang yang dikembalikan jika player cancel bounty miliknya.
+  # Contoh 80 = refund 80%, potongan 20%.
   cancel-refund-percent: 80
 
 anti-abuse:
+  # Cooldown anti-farm (detik) untuk pasangan killer-target yang sama.
+  # Selama cooldown aktif, killer yang sama tidak bisa claim bounty target yang sama lagi.
   claim-cooldown-seconds-per-pair: 3600
 
 gui:
+  # Jumlah slot item target per halaman GUI (bukan ukuran inventory total).
   page-size: 28
 
 messages:
+  # Prefix di awal pesan plugin.
   prefix: "[Bounty] "
+
+  # true = pesan pakai style/warna lebih rapi (Adventure formatting).
+  # false = pesan plain/minimal.
   beautify: true
+
+  # Broadcast ke server saat bounty dipasang.
   broadcast-place: true
+
+  # Broadcast ke server saat bounty berhasil di-claim.
   broadcast-claim: true
 
 storage:
-  type: "sqlite" # sqlite or mysql
+  # Backend database: "sqlite" atau "mysql".
+  # sqlite cocok untuk single-server sederhana.
+  # mysql cocok untuk produksi/skalabilitas lebih baik.
+  type: "sqlite"
+
   mysql:
+    # Dipakai hanya jika storage.type = "mysql".
     host: "127.0.0.1"
     port: 3306
     database: "bounty"
@@ -26,19 +56,34 @@ storage:
     use-ssl: false
 
 discord:
+  # true = kirim event bounty ke Discord webhook.
   enabled: false
+
+  # URL webhook Discord. Wajib diisi jika enabled=true.
   webhook-url: ""
+
+  # Nama bot yang tampil di Discord webhook.
   username: "Bounty"
+
+  # Avatar webhook (URL image). Kosongkan untuk default.
   avatar-url: ""
+
   embed:
+    # Footer embed Discord.
     footer-text: "Bounty"
+
+    # true = tampilkan timestamp pada embed.
     show-timestamp: true
+
+    # Warna embed per event (format HEX).
     colors:
-      place: "#F1C40F"
-      claim: "#2ECC71"
-      cancel: "#E74C3C"
-      admin: "#3498DB"
+      place: "#F1C40F"   # kuning - bounty dipasang
+      claim: "#2ECC71"   # hijau - bounty di-claim
+      cancel: "#E74C3C"  # merah - bounty dicancel
+      admin: "#3498DB"   # biru - aksi admin
+
   events:
+    # Toggle event mana yang dikirim ke Discord.
     place: true
     claim: true
     cancel: true
