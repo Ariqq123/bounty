@@ -1,53 +1,53 @@
 # ==============================================
 # BOUNTY CONFIGURATION
 # ==============================================
-# Catatan:
-# - Ubah nilai sesuai kebutuhan server kamu.
-# - Setelah ubah config: restart server atau jalankan /bounty reload.
+# Note:
+# - Adjust these values to fit your server's economy and requirements.
+# - After editing: restart the server or run `/bounty reload`.
 
 bounty:
-  # Nominal minimum saat player pasang bounty.
+  # The minimum amount of money required to place a bounty.
   min-amount: 100
 
-  # Nominal maksimum bounty sekali pasang.
-  # 0 = tanpa batas (tetap dibatasi oleh limit aman plugin/economy).
+  # The maximum amount of money allowed for a single bounty contribution.
+  # Set to 0 for unlimited (only bound by the economy plugin's safe limits).
   max-amount: 0
 
-  # Persentase uang yang dikembalikan jika player cancel bounty miliknya.
-  # Contoh 80 = refund 80%, potongan 20%.
+  # The percentage of the contribution refunded to the player upon cancellation.
+  # E.g., 80 means the player gets 80% back, and 20% is taken as a penalty.
   cancel-refund-percent: 80
 
 anti-abuse:
-  # Cooldown anti-farm (detik) untuk pasangan killer-target yang sama.
-  # Selama cooldown aktif, killer yang sama tidak bisa claim bounty target yang sama lagi.
+  # Anti-abuse cooldown (in seconds) for the same killer-target pair.
+  # Prevents the same killer from repeatedly claiming bounties on the same target.
   claim-cooldown-seconds-per-pair: 3600
 
 gui:
-  # Jumlah slot item target per halaman GUI (bukan ukuran inventory total).
+  # The number of target item slots displayed per page in the GUI.
   page-size: 28
 
 messages:
-  # Prefix di awal pesan plugin.
+  # The prefix prepended to all plugin chat messages.
   prefix: "[Bounty] "
 
-  # true = pesan pakai style/warna lebih rapi (Adventure formatting).
-  # false = pesan plain/minimal.
+  # Enable modern/beautified chat formatting using Adventure.
+  # If false, falls back to legacy/plain styling.
   beautify: true
 
-  # Broadcast ke server saat bounty dipasang.
+  # Broadcast a message to the entire server when a new bounty is placed.
   broadcast-place: true
 
-  # Broadcast ke server saat bounty berhasil di-claim.
+  # Broadcast a message to the entire server when a bounty is claimed.
   broadcast-claim: true
 
 storage:
-  # Backend database: "sqlite" atau "mysql".
-  # sqlite cocok untuk single-server sederhana.
-  # mysql cocok untuk produksi/skalabilitas lebih baik.
+  # Database backend storage type: "sqlite" or "mysql".
+  # Use "sqlite" for simple single-server setups.
+  # Use "mysql" for performance and network setups.
   type: "sqlite"
 
   mysql:
-    # Dipakai hanya jika storage.type = "mysql".
+    # These settings are only active if storage.type is set to "mysql".
     host: "127.0.0.1"
     port: 3306
     database: "bounty"
@@ -56,35 +56,36 @@ storage:
     use-ssl: false
 
 discord:
-  # true = kirim event bounty ke Discord webhook.
+  # Set to true to send bounty events to a Discord channel.
   enabled: false
 
-  # URL webhook Discord. Wajib diisi jika enabled=true.
+  # The Discord Webhook URL. Required if discord.enabled is true.
   webhook-url: ""
 
-  # Nama bot yang tampil di Discord webhook.
+  # The username displayed for the Discord webhook message.
   username: "Bounty"
 
-  # Avatar webhook (URL image). Kosongkan untuk default.
+  # The URL of the image to use as the webhook's avatar. Leave blank for default.
   avatar-url: ""
 
   embed:
-    # Footer embed Discord.
+    # The text shown in the footer of the Discord embed messages.
     footer-text: "Bounty"
 
-    # true = tampilkan timestamp pada embed.
+    # Show timestamps on the Discord embed messages.
     show-timestamp: true
 
-    # Warna embed per event (format HEX).
+    # The border colors for Discord embeds (HEX format).
     colors:
-      place: "#F1C40F"   # kuning - bounty dipasang
-      claim: "#2ECC71"   # hijau - bounty di-claim
-      cancel: "#E74C3C"  # merah - bounty dicancel
-      admin: "#3498DB"   # biru - aksi admin
+      place: "#F1C40F"   # Yellow - Bounty placed
+      claim: "#2ECC71"   # Green - Bounty claimed
+      cancel: "#E74C3C"  # Red - Bounty cancelled
+      admin: "#3498DB"   # Blue - Admin action
 
   events:
-    # Toggle event mana yang dikirim ke Discord.
+    # Toggle which events trigger a Discord webhook notification.
     place: true
     claim: true
     cancel: true
     admin: true
+
