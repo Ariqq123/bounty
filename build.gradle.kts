@@ -24,6 +24,9 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.12.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    testImplementation("org.testcontainers:mysql:1.20.4")
+    testImplementation("org.testcontainers:junit-jupiter:1.20.4")
 }
 
 java {
@@ -33,7 +36,18 @@ java {
 }
 
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags("integration")
+    }
+}
+
+tasks.register<Test>("integrationTest") {
+    description = "Runs integration tests (requires Docker for Testcontainers)."
+    group = "verification"
+    useJUnitPlatform {
+        includeTags("integration")
+    }
+    shouldRunAfter(tasks.test)
 }
 
 tasks.processResources {
